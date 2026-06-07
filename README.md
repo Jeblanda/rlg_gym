@@ -36,3 +36,6 @@ row-level security policies in `supabase-setup.sql`.
 If adding a member reports a row-level security error, run
 `supabase-repair-admin.sql` after replacing `YOUR_ADMIN_EMAIL`, then sign out
 and back into the portal so Supabase issues a fresh admin session token.
+
+When upgrading a database created by an older portal version, run
+`supabase-migrate-existing.sql` once in the Supabase SQL Editor.

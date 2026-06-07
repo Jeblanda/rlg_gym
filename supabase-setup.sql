@@ -19,6 +19,9 @@ create table if not exists public.members (
   updated_at timestamptz not null default now()
 );
 
+-- CREATE TABLE IF NOT EXISTS does not add columns to an existing table.
+alter table public.members add column if not exists updated_at timestamptz not null default now();
+
 alter table public.members enable row level security;
 
 drop policy if exists "Authenticated admins can read members" on public.members;

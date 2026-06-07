@@ -35,7 +35,7 @@ function dbToMember(row) {
   return { id: row.id, memberId: row.member_id, name: row.name, dob: row.dob, email: row.email || "", phone: row.phone || "", address: row.address || "", emergencyName: row.emergency_name || "", emergencyPhone: row.emergency_phone || "", plan: row.plan, startDate: row.start_date, expiry: row.expiry, lastCheckin: row.last_checkin, notes: row.notes || "", photoPath: row.face_photo_path, validIdPath: row.valid_id_path, photo: "", validIdPhoto: "" };
 }
 function memberToDb(data, facePath, validIdPath) {
-  return { member_id: data.memberId, name: data.name, dob: data.dob, email: data.email, phone: data.phone, address: data.address, emergency_name: data.emergencyName, emergency_phone: data.emergencyPhone, plan: data.plan, start_date: data.startDate, expiry: data.expiry, notes: data.notes, face_photo_path: facePath, valid_id_path: validIdPath, updated_at: new Date().toISOString() };
+  return { member_id: data.memberId, name: data.name, dob: data.dob, email: data.email, phone: data.phone, address: data.address, emergency_name: data.emergencyName, emergency_phone: data.emergencyPhone, plan: data.plan, start_date: data.startDate, expiry: data.expiry, notes: data.notes, face_photo_path: facePath, valid_id_path: validIdPath };
 }
 async function signedUrl(path) {
   if (!path) return "";
@@ -142,8 +142,8 @@ $("#profileContent").addEventListener("click", async (event) => {
   if (button.dataset.action === "edit") { profileDialog.close(); openForm(member); return; }
   if (button.dataset.action === "checkin" && statusOf(member.expiry) === "expired") { notify("Entry denied: membership is expired"); return; }
   let changes;
-  if (button.dataset.action === "checkin") changes = { last_checkin: new Date().toISOString(), updated_at: new Date().toISOString() };
-  if (button.dataset.action === "renew") { const date = new Date(Math.max(Date.now(), new Date(`${member.expiry}T00:00:00`))); date.setMonth(date.getMonth() + ({ Monthly: 1, Quarterly: 3, Annual: 12 })[member.plan]); changes = { expiry: date.toISOString().slice(0, 10), updated_at: new Date().toISOString() }; }
+  if (button.dataset.action === "checkin") changes = { last_checkin: new Date().toISOString() };
+  if (button.dataset.action === "renew") { const date = new Date(Math.max(Date.now(), new Date(`${member.expiry}T00:00:00`))); date.setMonth(date.getMonth() + ({ Monthly: 1, Quarterly: 3, Annual: 12 })[member.plan]); changes = { expiry: date.toISOString().slice(0, 10) }; }
   const { error } = await supabaseClient.from("members").update(changes).eq("id", member.id);
   if (error) { notify(error.message); return; }
   await loadMembers();

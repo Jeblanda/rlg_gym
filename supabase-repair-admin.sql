@@ -5,6 +5,7 @@ update auth.users
 set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb
 where lower(email) = lower('YOUR_ADMIN_EMAIL');
 
+alter table public.members add column if not exists updated_at timestamptz not null default now();
 alter table public.members enable row level security;
 
 drop policy if exists "Authenticated admins can read members" on public.members;
