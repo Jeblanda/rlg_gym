@@ -102,7 +102,7 @@ async function uploadImage(blob, memberId, type) {
   if (!blob) return null;
   const path = `${memberId}/${type}-${crypto.randomUUID()}.jpg`;
   const { error } = await supabaseClient.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg" });
-  if (error) throw error;
+  if (error) throw new Error(`Image upload rejected: ${error.message}`);
   return path;
 }
 form.addEventListener("submit", async (event) => {
@@ -120,7 +120,7 @@ form.addEventListener("submit", async (event) => {
     const payload = memberToDb(data, facePath || existing?.photoPath, validIdPath || existing?.validIdPath);
     const query = existing ? supabaseClient.from("members").update(payload).eq("id", existing.id) : supabaseClient.from("members").insert(payload);
     const { error } = await query;
-    if (error) throw error;
+    if (error) throw new Error(`Member record rejected: ${error.message}`);
     memberDialog.close();
     notify(existing ? "Member profile updated" : "Member profile created");
     await loadMembers();
