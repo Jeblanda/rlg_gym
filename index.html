@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="RLG Gym admin membership verification portal">
+  <title>RLG Gym Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <section class="login-screen" id="loginScreen">
+    <div class="login-art">
+      <img src="assets/rlggym.png" alt="RLG Fitness Gym">
+      <div><span>Private administration portal</span><h1>Know every<br><em>member.</em></h1></div>
+    </div>
+    <form class="login-card" id="loginForm">
+      <img src="assets/rlggym.png" alt="" class="login-logo">
+      <p class="kicker">Authorized access only</p>
+      <h2>Admin sign in</h2>
+      <p class="muted">Sign in to verify and manage RLG Gym members.</p>
+      <label>Email address<input name="email" type="email" autocomplete="username" required placeholder="Admin email"></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="Password"></label>
+      <p class="login-error" id="loginError"></p>
+      <button class="button primary" type="submit">Sign in to portal</button>
+    </form>
+  </section>
+
+  <div class="app-shell" id="appShell" hidden>
+    <aside class="sidebar">
+      <div class="logo-wrap"><img src="assets/rlggym.png" alt="RLG Fitness Gym"></div>
+      <nav>
+        <button class="nav-item active"><span>▦</span> Overview</button>
+        <button class="nav-item" id="navMembers"><span>◎</span> Members</button>
+        <button class="nav-item" id="navCheckin"><span>✓</span> Verification</button>
+      </nav>
+      <div class="admin-box"><span class="admin-avatar">AD</span><div><strong>Gym Admin</strong><small>Administrator</small></div></div>
+      <button class="logout" id="logoutButton">Log out</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="menu-button" id="menuButton">☰</button>
+        <div><p class="kicker" id="todayLabel"></p><h2>Member overview</h2></div>
+        <button class="button primary" id="addMemberButton">+ Add member</button>
+      </header>
+
+      <section class="verify-panel" id="verifyPanel">
+        <div>
+          <p class="kicker light">Front desk verification</p>
+          <h1>Who just<br><em>walked in?</em></h1>
+          <p>Enter their member ID, name, email, or phone number to confirm their membership immediately.</p>
+        </div>
+        <label class="verify-search"><span>⌕</span><input id="verifyInput" placeholder="Search member ID or name..." autocomplete="off"></label>
+        <div class="verify-result" id="verifyResult">
+          <span class="scan-icon">◎</span>
+          <strong>Ready to verify</strong>
+          <small>Member details will appear here</small>
+        </div>
+      </section>
+
+      <section class="metrics">
+        <article><span>Total members</span><strong id="totalCount">0</strong><small>All registered profiles</small></article>
+        <article><span>Active memberships</span><strong id="activeCount">0</strong><small class="green">Cleared for entry</small></article>
+        <article><span>Expiring soon</span><strong id="expiringCount">0</strong><small class="amber">Within 14 days</small></article>
+        <article><span>Expired</span><strong id="expiredCount">0</strong><small class="red">Renewal required</small></article>
+      </section>
+
+      <section class="directory" id="directory">
+        <div class="directory-head">
+          <div><p class="kicker">Member records</p><h2>Membership directory</h2></div>
+          <div class="filters">
+            <label class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="Search ID, name, phone..."></label>
+            <select id="statusFilter"><option value="all">All statuses</option><option value="active">Active</option><option value="expiring">Expiring soon</option><option value="expired">Expired</option></select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Member</th><th>Member ID</th><th>Started</th><th>Expires</th><th>Status</th><th>Last check-in</th><th></th></tr></thead>
+            <tbody id="membersTable"></tbody>
+          </table>
+          <div class="empty" id="emptyState" hidden>No matching members found.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="memberDialog">
+    <form id="memberForm">
+      <div class="modal-head"><div><p class="kicker" id="formKicker">New profile</p><h2 id="formTitle">Add member</h2></div><button type="button" class="icon-button close-dialog">×</button></div>
+      <input type="hidden" name="recordId">
+      <div class="form-body">
+        <div class="photo-fields">
+          <div class="photo-field">
+            <p class="kicker">Face photo</p>
+            <div class="photo-preview face-preview" id="photoPreview"><span>Add<br>face photo</span></div>
+            <label class="button secondary">Upload face photo<input name="photo" id="photoInput" type="file" accept="image/*" capture="user" hidden></label>
+            <small>Use a clear front-facing photo.</small>
+          </div>
+          <div class="photo-field">
+            <p class="kicker">Valid ID</p>
+            <div class="photo-preview id-preview" id="validIdPreview"><span>Add valid<br>ID image</span></div>
+            <label class="button secondary">Upload valid ID<input name="validIdPhoto" id="validIdInput" type="file" accept="image/*" capture="environment" hidden></label>
+            <small>Upload a clear image of a valid ID.</small>
+          </div>
+        </div>
+        <div class="fields">
+          <label class="span-2">Full legal name<input name="name" required></label>
+          <label>Member ID<input name="memberId" required placeholder="RLG-0001"></label>
+          <div class="date-field" data-date-field="dob"><span>Date of birth</span><input name="dob" type="hidden"><div class="date-parts"><select data-part="month" aria-label="Birth month" required></select><select data-part="day" aria-label="Birth day" required></select><select data-part="year" aria-label="Birth year" required></select></div></div>
+          <label>Email<input name="email" type="email" required></label>
+          <label>Phone number<input name="phone" type="tel" required></label>
+          <label>Membership plan<select name="plan"><option>Monthly</option><option>Quarterly</option><option>Annual</option></select></label>
+          <div class="date-field" data-date-field="startDate"><span>Start date</span><input name="startDate" type="hidden"><div class="date-parts"><select data-part="month" aria-label="Start month" required></select><select data-part="day" aria-label="Start day" required></select><select data-part="year" aria-label="Start year" required></select></div></div>
+          <div class="date-field" data-date-field="expiry"><span>Expiry date</span><input name="expiry" type="hidden"><div class="date-parts"><select data-part="month" aria-label="Expiry month" required></select><select data-part="day" aria-label="Expiry day" required></select><select data-part="year" aria-label="Expiry year" required></select></div></div>
+          <label class="span-2">Home address<input name="address" required></label>
+          <label>Emergency contact<input name="emergencyName" required></label>
+          <label>Emergency phone<input name="emergencyPhone" type="tel" required></label>
+          <label class="span-2">Admin notes<textarea name="notes" rows="3" placeholder="Medical notes, access details, etc."></textarea></label>
+        </div>
+      </div>
+      <div class="modal-actions"><button type="button" class="button ghost close-dialog">Cancel</button><button type="submit" class="button primary">Save member profile</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="profileDialog">
+    <div class="profile-modal"><button class="icon-button close-profile">×</button><div id="profileContent"></div></div>
+  </dialog>
+
+  <div class="toast" id="toast"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
