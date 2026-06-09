@@ -4,6 +4,7 @@ Two role-based dashboards:
 
 - `index.html` is the staff portal for member management, verification, check-ins, renewals, and PHP 80 daily walk-ins.
 - `admin.html` includes all staff features plus attendance history, reports, revenue summaries, and CSV exports.
+- Admins can securely create staff login accounts from the Staff Accounts section.
 
 ## Supabase setup
 
@@ -12,6 +13,15 @@ Two role-based dashboards:
    email address of a user created under Authentication > Users.
 3. Confirm the `member-images` storage bucket is private.
 4. Run `supabase-admin-staff-upgrade.sql`, replace both placeholder emails, and sign back in.
+5. Deploy the admin-only staff account function:
+
+```powershell
+npx supabase@latest login
+npx supabase@latest functions deploy manage-staff --project-ref rhpnpcdirkyuzznzkvud
+```
+
+The Edge Function uses Supabase's server-side service-role environment variable.
+Never place the service-role key in `supabase-config.js` or other browser files.
 
 The browser uses the publishable anon key in `supabase-config.js`. Never place
 the Supabase service-role key in this project.

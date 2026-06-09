@@ -37,6 +37,7 @@
         <button class="nav-item" id="navCheckin"><span>✓</span> Verification</button>
         <button class="nav-item" id="navAttendance"><span>+</span> Attendance</button>
         <button class="nav-item" id="navReports"><span>#</span> Reports</button>
+        <button class="nav-item" id="navStaff"><span>+</span> Staff Accounts</button>
       </nav>
       <div class="admin-box"><span class="admin-avatar" id="userAvatar">AD</span><div><strong id="userName">Gym Admin</strong><small id="userRole">Administrator</small></div></div>
       <button class="logout" id="logoutButton">Log out</button>
@@ -117,6 +118,20 @@
           <article><span>Revenue This Month</span><strong id="reportMonthlyRevenue">PHP 0.00</strong></article>
         </div>
       </section>
+
+      <section class="directory admin-section" id="staffSection">
+        <div class="directory-head">
+          <div><p class="kicker">Account management</p><h2>Staff accounts</h2></div>
+          <button class="button primary" id="addStaffButton">+ Create staff account</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Staff Name</th><th>Email</th><th>Created</th><th>Last Sign In</th></tr></thead>
+            <tbody id="staffTable"></tbody>
+          </table>
+          <div class="empty" id="staffEmpty" hidden>No staff accounts found.</div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -190,6 +205,22 @@
         <div class="confirm-grid" id="renewDetails"></div>
       </div>
       <div class="modal-actions"><button type="button" class="button ghost close-renew">Cancel</button><button type="submit" class="button primary">Confirm renewal</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="staffDialog">
+    <form id="staffForm">
+      <div class="modal-head"><div><p class="kicker">Admin only</p><h2>Create staff account</h2></div><button type="button" class="icon-button close-staff">×</button></div>
+      <div class="confirm-body">
+        <p>The staff member can sign in through the Staff Portal immediately after creation.</p>
+        <div class="fields">
+          <label class="span-2">Full name<input name="fullName" required></label>
+          <label class="span-2">Email address<input name="email" type="email" required></label>
+          <label>Password<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+          <label>Confirm password<input name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required></label>
+        </div>
+      </div>
+      <div class="modal-actions"><button type="button" class="button ghost close-staff">Cancel</button><button type="submit" class="button primary">Create staff account</button></div>
     </form>
   </dialog>
 

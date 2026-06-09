@@ -4,6 +4,7 @@ let members = [];
 let attendance = [];
 let payments = [];
 let renewals = [];
+let staffAccounts = [];
 let currentUser = null;
 let pendingRenewal = null;
 const pageRole = document.body.dataset.page || "staff";
@@ -97,6 +98,31 @@ async function loadAdminData() {
   payments = paymentsResult.data;
   renewals = renewalsResult.data;
   renderAdmin();
+  await loadStaffAccounts();
+}
+async function callStaffFunction(body) {
+  const { data, error } = await supabaseClient.functions.invoke("manage-staff", { body });
+  if (error) throw new Error(data?.error || error.message);
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+async function loadStaffAccounts() {
+  if (!isAdminPage) return;
+  try {
+    const data = await callStaffFunction({ action: "list" });
+    staffAccounts = data.staff || [];
+    renderStaffAccounts();
+  } catch (error) {
+    $("#staffTable").innerHTML = "";
+    $("#staffEmpty").hidden = false;
+    $("#staffEmpty").textContent = `Could not load staff accounts: ${error.message}`;
+  }
+}
+function renderStaffAccounts() {
+  if (!isAdminPage) return;
+  $("#staffTable").innerHTML = staffAccounts.map((staff) => `<tr><td data-label="Staff Name"><b>${escapeHTML(staff.fullName || "Staff")}</b></td><td data-label="Email">${escapeHTML(staff.email)}</td><td data-label="Created">${escapeHTML(formatCheckin(staff.createdAt))}</td><td data-label="Last Sign In">${escapeHTML(formatCheckin(staff.lastSignInAt))}</td></tr>`).join("");
+  $("#staffEmpty").hidden = staffAccounts.length > 0;
+  $("#staffEmpty").textContent = "No staff accounts found.";
 }
 async function showApp(session) {
   currentUser = session.user;
@@ -372,6 +398,28 @@ if (isAdminPage) {
   $("#reportMonth").addEventListener("change", renderAdmin);
   $("#navAttendance").addEventListener("click", () => { closeMobileMenu(); $("#attendanceSection").scrollIntoView({ behavior: "smooth" }); });
   $("#navReports").addEventListener("click", () => { closeMobileMenu(); $("#reportsSection").scrollIntoView({ behavior: "smooth" }); });
+  $("#navStaff").addEventListener("click", () => { closeMobileMenu(); $("#staffSection").scrollIntoView({ behavior: "smooth" }); });
   $("#exportAttendance").addEventListener("click", () => downloadCsv("attendance-report.csv", [["Attendance ID", "Name", "Type", "Phone", "Address", "Date of Visit", "Time In", "Recorded By"], ...attendance.map((record) => [record.id, record.member_name, record.attendance_type || "Member", record.phone || "", record.address || "", localDate(record.time_in), new Date(record.time_in).toLocaleTimeString(), record.recorded_by])]));
   $("#exportReports").addEventListener("click", () => downloadCsv("business-summary.csv", [["Report", "Value"], ["Active Members", $("#reportActive").textContent], ["Expired Members", $("#reportExpired").textContent], ["Daily Attendance", $("#reportDailyAttendance").textContent], ["Monthly Attendance", $("#reportMonthlyAttendance").textContent], ["Payments", $("#reportPayments").textContent], ["Payment Amount", $("#reportPaymentAmount").textContent], ["Renewals", $("#reportRenewals").textContent], ["Daily Revenue", $("#reportDailyRevenue").textContent], ["Monthly Revenue", $("#reportMonthlyRevenue").textContent]]));
+  const staffDialog = $("#staffDialog");
+  const staffForm = $("#staffForm");
+  $("#addStaffButton").addEventListener("click", () => { staffForm.reset(); staffDialog.showModal(); });
+  document.querySelectorAll(".close-staff").forEach((button) => button.addEventListener("click", () => staffDialog.close()));
+  staffForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(staffForm));
+    if (values.password !== values.confirmPassword) { notify("Staff passwords do not match"); return; }
+    const submitButton = staffForm.querySelector('[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      await callStaffFunction({ action: "create", fullName: values.fullName, email: values.email, password: values.password });
+      staffDialog.close();
+      notify("Staff account created");
+      await loadStaffAccounts();
+    } catch (error) {
+      notify(`Could not create staff account: ${error.message}`);
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
 }
