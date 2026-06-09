@@ -1,6 +1,15 @@
 const supabaseClient = window.supabase.createClient(window.RLG_SUPABASE.url, window.RLG_SUPABASE.anonKey);
 const BUCKET = "member-images";
 let members = [];
+let attendance = [];
+let payments = [];
+let renewals = [];
+let currentUser = null;
+let pendingRenewal = null;
+const pageRole = document.body.dataset.page || "staff";
+const isAdminPage = pageRole === "admin";
+const PLAN_MONTHS = { Daily: 0, Monthly: 1, Quarterly: 3, Annual: 12 };
+const PLAN_RATES = { Daily: 80, Monthly: 800 };
 let pendingPhoto = null;
 let pendingValidId = null;
 const $ = (selector) => document.querySelector(selector);
@@ -10,6 +19,10 @@ const table = $("#membersTable");
 const form = $("#memberForm");
 const memberDialog = $("#memberDialog");
 const profileDialog = $("#profileDialog");
+const walkInDialog = $("#walkInDialog");
+const walkInForm = $("#walkInForm");
+const renewDialog = $("#renewDialog");
+const renewForm = $("#renewForm");
 
 $("#todayLabel").textContent = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date());
 const escapeHTML = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]);
@@ -28,8 +41,31 @@ function notify(text) {
 const dateFields = [...document.querySelectorAll("[data-date-field]")];
 function dateOptions(start, end, placeholder) { return `<option value="">${placeholder}</option>` + Array.from({ length: end - start + 1 }, (_, index) => { const value = start + index; return `<option value="${String(value).padStart(2, "0")}">${value}</option>`; }).join(""); }
 function syncDateField(field, value = "") { const [year = "", month = "", day = ""] = value.split("-"); field.querySelector('[data-part="month"]').value = month; field.querySelector('[data-part="day"]').value = day; field.querySelector('[data-part="year"]').value = year; }
-function updateDateField(field) { const month = field.querySelector('[data-part="month"]').value, day = field.querySelector('[data-part="day"]').value, year = field.querySelector('[data-part="year"]').value; field.querySelector('input[type="hidden"]').value = month && day && year ? `${year}-${month}-${day}` : ""; }
+function updateDateField(field) { const month = field.querySelector('[data-part="month"]').value, day = field.querySelector('[data-part="day"]').value, year = field.querySelector('[data-part="year"]').value; field.querySelector('input[type="hidden"]').value = month && day && year ? `${year}-${month}-${day}` : ""; if (field.dataset.dateField === "startDate") updateExpiry(); }
 dateFields.forEach((field) => { const name = field.dataset.dateField, currentYear = new Date().getFullYear(); field.querySelector('[data-part="month"]').innerHTML = dateOptions(1, 12, "Month"); field.querySelector('[data-part="day"]').innerHTML = dateOptions(1, 31, "Day"); const start = name === "dob" ? currentYear - 100 : currentYear - 2, end = name === "dob" ? currentYear : currentYear + 15; field.querySelector('[data-part="year"]').innerHTML = `<option value="">Year</option>` + Array.from({ length: end - start + 1 }, (_, index) => end - index).map((year) => `<option value="${year}">${year}</option>`).join(""); field.querySelectorAll("select").forEach((select) => select.addEventListener("change", () => updateDateField(field))); });
+function expiryFrom(startDate, plan) {
+  if (!startDate || PLAN_MONTHS[plan] === undefined) return "";
+  if (plan === "Daily") return startDate;
+  const [year, month, day] = startDate.split("-").map(Number);
+  const targetMonth = month - 1 + PLAN_MONTHS[plan];
+  const lastDay = new Date(year, targetMonth + 1, 0).getDate();
+  const date = new Date(year, targetMonth, Math.min(day, lastDay));
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+function expiryAfterMonths(startDate, months) {
+  const [year, month, day] = startDate.split("-").map(Number);
+  const targetMonth = month - 1 + months;
+  const lastDay = new Date(year, targetMonth + 1, 0).getDate();
+  const date = new Date(year, targetMonth, Math.min(day, lastDay));
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+function updateExpiry() {
+  const expiry = expiryFrom(form.elements.startDate.value, form.elements.plan.value);
+  form.elements.expiry.value = expiry;
+  $("#expiryDisplay").textContent = expiry ? formatDate(expiry) : "Choose a start date and plan";
+  $("#planRate").textContent = PLAN_RATES[form.elements.plan.value] ? `${form.elements.plan.value} rate: ${money(PLAN_RATES[form.elements.plan.value])}` : "Rate not configured";
+}
+form.elements.plan.addEventListener("change", updateExpiry);
 
 function dbToMember(row) {
   return { id: row.id, memberId: row.member_id, name: row.name, dob: row.dob, email: row.email || "", phone: row.phone || "", address: row.address || "", emergencyName: row.emergency_name || "", emergencyPhone: row.emergency_phone || "", plan: row.plan, startDate: row.start_date, expiry: row.expiry, lastCheckin: row.last_checkin, notes: row.notes || "", photoPath: row.face_photo_path, validIdPath: row.valid_id_path, photo: "", validIdPhoto: "" };
@@ -48,17 +84,46 @@ async function loadMembers() {
   members = await Promise.all(data.map(async (row) => { const member = dbToMember(row); [member.photo, member.validIdPhoto] = await Promise.all([signedUrl(member.photoPath), signedUrl(member.validIdPath)]); return member; }));
   render();
 }
-async function showApp() {
+async function loadAdminData() {
+  if (!isAdminPage) return;
+  const [attendanceResult, paymentsResult, renewalsResult] = await Promise.all([
+    supabaseClient.from("attendance").select("*").order("time_in", { ascending: false }),
+    supabaseClient.from("payments").select("*").order("paid_at", { ascending: false }),
+    supabaseClient.from("renewals").select("*").order("renewed_at", { ascending: false })
+  ]);
+  const failed = [attendanceResult, paymentsResult, renewalsResult].find((result) => result.error);
+  if (failed) { notify(`Could not load admin records: ${failed.error.message}`); return; }
+  attendance = attendanceResult.data;
+  payments = paymentsResult.data;
+  renewals = renewalsResult.data;
+  renderAdmin();
+}
+async function showApp(session) {
+  currentUser = session.user;
+  const role = session.user.app_metadata?.role || "";
+  if (!["staff", "admin"].includes(role)) {
+    $("#loginError").textContent = "This account has not been assigned a staff or admin role.";
+    await supabaseClient.auth.signOut();
+    return;
+  }
+  if (role !== pageRole) {
+    window.location.href = role === "admin" ? "admin.html" : "index.html";
+    return;
+  }
+  $("#userName").textContent = session.user.email;
+  $("#userRole").textContent = role === "admin" ? "Administrator" : "Staff";
+  $("#userAvatar").textContent = role === "admin" ? "AD" : "ST";
   loginScreen.hidden = true;
   appShell.hidden = false;
   await loadMembers();
+  await loadAdminData();
 }
 
 supabaseClient.auth.onAuthStateChange((_event, session) => {
-  if (session) showApp();
+  if (session) showApp(session);
   else { loginScreen.hidden = false; appShell.hidden = true; }
 });
-supabaseClient.auth.getSession().then(({ data }) => { if (data.session) showApp(); });
+supabaseClient.auth.getSession().then(({ data }) => { if (data.session) showApp(data.session); });
 $("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   $("#loginError").textContent = "";
@@ -89,6 +154,8 @@ function openForm(member) {
   form.elements.recordId.value = member?.id || "";
   if (!member) { form.elements.startDate.value = new Date().toISOString().slice(0, 10); form.elements.memberId.value = `RLG-${String(100 + members.length + 1).padStart(4, "0")}`; }
   dateFields.forEach((field) => syncDateField(field, form.elements[field.dataset.dateField].value));
+  if (!member) updateExpiry();
+  else { $("#expiryDisplay").textContent = formatDate(member.expiry); $("#planRate").textContent = PLAN_RATES[member.plan] ? `${member.plan} rate: ${money(PLAN_RATES[member.plan])}` : "Rate not configured"; }
   $("#photoPreview").innerHTML = member?.photo ? `<img src="${member.photo}" alt="Member face photo">` : "<span>Add<br>face photo</span>";
   $("#validIdPreview").innerHTML = member?.validIdPhoto ? `<img src="${member.validIdPhoto}" alt="Valid ID image">` : "<span>Add valid<br>ID image</span>";
   memberDialog.showModal();
@@ -109,8 +176,11 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(form));
   delete data.photo; delete data.validIdPhoto;
+  data.expiry = expiryFrom(data.startDate, data.plan);
   const validDate = (value) => { if (!value) return false; const [year, month, day] = value.split("-").map(Number), date = new Date(year, month - 1, day); return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day; };
   if (!validDate(data.dob) || !validDate(data.startDate) || !validDate(data.expiry)) { notify("Please choose valid dates"); return; }
+  if (!data.emergencyName.trim()) { notify("Emergency contact is required"); return; }
+  if (!/^\d{11}$/.test(data.phone) || !/^\d{11}$/.test(data.emergencyPhone)) { notify("Phone and emergency phone must contain exactly 11 digits"); return; }
   const existing = members.find((member) => member.id === data.recordId);
   if (!existing && (!pendingPhoto || !pendingValidId)) { notify("A face photo and valid ID image are required"); return; }
   const duplicate = members.find((member) => member.memberId.toLowerCase() === data.memberId.toLowerCase() && member.id !== data.recordId);
@@ -135,21 +205,83 @@ function profileHTML(member) {
 function openProfile(id) { const member = members.find((item) => item.id === id); $("#profileContent").innerHTML = profileHTML(member); profileDialog.showModal(); }
 table.addEventListener("click", (event) => { const button = event.target.closest("[data-id]"); if (button) openProfile(button.dataset.id); });
 $(".close-profile").addEventListener("click", () => profileDialog.close());
+async function confirmCheckin(member) {
+  if (statusOf(member.expiry) === "expired") { notify("Entry denied: membership is expired"); return false; }
+  const checkedInAt = new Date().toISOString();
+  const { error: attendanceError } = await supabaseClient.from("attendance").insert({ member_id: member.id, member_name: member.name, phone: member.phone, address: member.address, attendance_type: "Member", time_in: checkedInAt, recorded_by: currentUser.email });
+  if (attendanceError) { notify(attendanceError.message); return false; }
+  const { error } = await supabaseClient.from("members").update({ last_checkin: checkedInAt }).eq("id", member.id);
+  if (error) { notify(error.message); return false; }
+  await loadMembers();
+  await loadAdminData();
+  notify("Member verified and checked in");
+  return true;
+}
 $("#profileContent").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const member = members.find((item) => item.id === button.dataset.id);
   if (button.dataset.action === "edit") { profileDialog.close(); openForm(member); return; }
-  if (button.dataset.action === "checkin" && statusOf(member.expiry) === "expired") { notify("Entry denied: membership is expired"); return; }
-  let changes;
-  if (button.dataset.action === "checkin") changes = { last_checkin: new Date().toISOString() };
-  if (button.dataset.action === "renew") { const date = new Date(Math.max(Date.now(), new Date(`${member.expiry}T00:00:00`))); date.setMonth(date.getMonth() + ({ Monthly: 1, Quarterly: 3, Annual: 12 })[member.plan]); changes = { expiry: date.toISOString().slice(0, 10) }; }
-  const { error } = await supabaseClient.from("members").update(changes).eq("id", member.id);
-  if (error) { notify(error.message); return; }
+  if (button.dataset.action === "checkin") {
+    if (await confirmCheckin(member)) $("#profileContent").innerHTML = profileHTML(members.find((item) => item.id === member.id));
+    return;
+  }
+  if (button.dataset.action === "renew") {
+    const oldExpiry = member.expiry;
+    const renewalStart = new Date(`${member.expiry}T23:59:59`) > new Date() ? member.expiry : localDate(new Date());
+    pendingRenewal = { member, oldExpiry, renewalStart };
+    renewForm.reset();
+    renewForm.elements.renewPlan.value = member.plan === "Daily" ? "Monthly" : member.plan;
+    renewForm.elements.renewMonths.value = Math.max(1, PLAN_MONTHS[renewForm.elements.renewPlan.value]);
+    updateRenewalPreview(true);
+    renewDialog.showModal();
+    return;
+  }
+});
+function updateRenewalPreview(setDefaultAmount = false) {
+  if (!pendingRenewal) return;
+  const plan = renewForm.elements.renewPlan.value;
+  const months = Math.max(1, Number(renewForm.elements.renewMonths.value) || 1);
+  const newExpiry = expiryAfterMonths(pendingRenewal.renewalStart, months);
+  if (setDefaultAmount) {
+    renewForm.elements.renewAmount.value = plan === "Monthly" ? months * PLAN_RATES.Monthly : PLAN_RATES[plan] || "";
+  }
+  $("#renewMember").innerHTML = `Confirm renewal for <strong>${escapeHTML(pendingRenewal.member.name)}</strong>. You may change the plan or months before confirming.`;
+  $("#renewDetails").innerHTML = `<span>New plan<strong>${escapeHTML(plan)}</strong></span><span>Renewal duration<strong>${months} month${months === 1 ? "" : "s"}</strong></span><span>Current expiry<strong>${formatDate(pendingRenewal.oldExpiry)}</strong></span><span>New expiry<strong>${formatDate(newExpiry)}</strong></span>`;
+}
+renewForm.elements.renewPlan.addEventListener("change", () => {
+  const plan = renewForm.elements.renewPlan.value;
+  renewForm.elements.renewMonths.value = Math.max(1, PLAN_MONTHS[plan]);
+  updateRenewalPreview(true);
+});
+renewForm.elements.renewMonths.addEventListener("input", () => updateRenewalPreview(true));
+document.querySelectorAll(".close-renew").forEach((button) => button.addEventListener("click", () => { pendingRenewal = null; renewDialog.close(); }));
+renewForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!pendingRenewal) return;
+  const { member, oldExpiry, renewalStart } = pendingRenewal;
+  const plan = renewForm.elements.renewPlan.value;
+  const months = Number(renewForm.elements.renewMonths.value);
+  const amount = Number(renewForm.elements.renewAmount.value);
+  if (!Number.isInteger(months) || months < 1 || months > 120) { notify("Renewal months must be between 1 and 120"); return; }
+  if (!Number.isFinite(amount) || amount <= 0) { notify("Enter a valid renewal payment amount"); return; }
+  const newExpiry = expiryAfterMonths(renewalStart, months);
+  const submitButton = renewForm.querySelector('[type="submit"]');
+  submitButton.disabled = true;
+  const { error: renewalError } = await supabaseClient.from("renewals").insert({ member_id: member.id, member_name: member.name, old_expiry: oldExpiry, new_expiry: newExpiry, renewal_plan: plan, renewal_months: months, amount, recorded_by: currentUser.email });
+  if (renewalError) { notify(renewalError.message); submitButton.disabled = false; return; }
+  const { error: paymentError } = await supabaseClient.from("payments").insert({ member_id: member.id, member_name: member.name, amount, payment_type: `Renewal - ${plan} (${months} month${months === 1 ? "" : "s"})`, recorded_by: currentUser.email });
+  if (paymentError) { notify(paymentError.message); submitButton.disabled = false; return; }
+  const { error } = await supabaseClient.from("members").update({ plan, expiry: newExpiry }).eq("id", member.id);
+  if (error) { notify(error.message); submitButton.disabled = false; return; }
+  renewDialog.close();
+  pendingRenewal = null;
+  submitButton.disabled = false;
   await loadMembers();
+  await loadAdminData();
   const refreshed = members.find((item) => item.id === member.id);
   $("#profileContent").innerHTML = profileHTML(refreshed);
-  notify(button.dataset.action === "checkin" ? "Member verified and checked in" : "Membership renewed");
+  notify("Membership renewed");
 });
 function verify() {
   const query = $("#verifyInput").value.toLowerCase().trim();
@@ -158,12 +290,88 @@ function verify() {
   if (!member) { $("#verifyResult").innerHTML = '<span class="scan-icon">×</span><strong>No registered member found</strong><small>Check the ID or create a new profile</small>'; return; }
   const status = statusOf(member.expiry);
   $("#verifyResult").innerHTML = `<div class="verify-card"><img class="verify-photo" src="${member.photo}" alt=""><div><h3>${escapeHTML(member.name)}</h3><p>${escapeHTML(member.memberId)} · Expires ${formatDate(member.expiry)}</p><button class="button secondary" data-verify-id="${member.id}">View full profile</button></div><div class="verify-state"><span class="status ${status}">${statusText(status)}</span><p>${status === "expired" ? "Do not admit" : "Identity and membership found"}</p></div></div>`;
+  const profileButton = $("#verifyResult [data-verify-id]");
+  const actions = document.createElement("div");
+  actions.className = "verify-actions";
+  actions.innerHTML = `<button class="button primary" data-verify-checkin="${member.id}" ${status === "expired" ? "disabled" : ""}>${status === "expired" ? "Entry denied" : "Confirm check-in"}</button>`;
+  profileButton.insertAdjacentHTML("beforebegin", `<p class="verify-last-checkin">Last check-in: <strong>${escapeHTML(formatCheckin(member.lastCheckin))}</strong></p>`);
+  profileButton.replaceWith(actions);
+  actions.append(profileButton);
 }
 $("#verifyInput").addEventListener("input", verify);
-$("#verifyResult").addEventListener("click", (event) => { const button = event.target.closest("[data-verify-id]"); if (button) openProfile(button.dataset.verifyId); });
+$("#verifyResult").addEventListener("click", async (event) => {
+  const profileButton = event.target.closest("[data-verify-id]");
+  if (profileButton) { openProfile(profileButton.dataset.verifyId); return; }
+  const checkinButton = event.target.closest("[data-verify-checkin]");
+  if (!checkinButton) return;
+  checkinButton.disabled = true;
+  const member = members.find((item) => item.id === checkinButton.dataset.verifyCheckin);
+  if (!(await confirmCheckin(member))) checkinButton.disabled = false;
+  else verify();
+});
 function closeMobileMenu() { $(".sidebar").classList.remove("open"); }
 $("#searchInput").addEventListener("input", render);
 $("#statusFilter").addEventListener("change", render);
 $("#navMembers").addEventListener("click", () => { closeMobileMenu(); $("#directory").scrollIntoView({ behavior: "smooth" }); });
 $("#navCheckin").addEventListener("click", () => { closeMobileMenu(); $("#verifyPanel").scrollIntoView({ behavior: "smooth" }); $("#verifyInput").focus(); });
 $("#menuButton").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
+$("#walkInButton").addEventListener("click", () => { walkInForm.reset(); walkInDialog.showModal(); });
+document.querySelectorAll(".close-walk-in").forEach((button) => button.addEventListener("click", () => walkInDialog.close()));
+walkInForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(walkInForm));
+  if (!/^\d{11}$/.test(data.phone)) { notify("Walk-in phone number must contain exactly 11 digits"); return; }
+  const timeIn = new Date().toISOString();
+  const { error: attendanceError } = await supabaseClient.from("attendance").insert({ member_name: data.name, phone: data.phone, address: data.address, attendance_type: "Walk-in", time_in: timeIn, recorded_by: currentUser.email });
+  if (attendanceError) { notify(attendanceError.message); return; }
+  const { error: paymentError } = await supabaseClient.from("payments").insert({ member_name: data.name, amount: PLAN_RATES.Daily, payment_type: "Daily walk-in", paid_at: timeIn, recorded_by: currentUser.email });
+  if (paymentError) { notify(paymentError.message); return; }
+  walkInDialog.close();
+  await loadAdminData();
+  notify("Walk-in attendance and PHP 80 payment recorded");
+});
+
+function money(value) { return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value || 0); }
+function localDate(value) {
+  const parts = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+  const get = (type) => parts.find((part) => part.type === type).value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+function renderAdmin() {
+  if (!isAdminPage) return;
+  const attendanceDate = $("#attendanceDate").value;
+  const shownAttendance = attendance.filter((record) => !attendanceDate || localDate(record.time_in) === attendanceDate);
+  $("#attendanceTable").innerHTML = shownAttendance.map((record) => `<tr><td data-label="Attendance ID"><b>${escapeHTML(record.id.slice(0, 8).toUpperCase())}</b></td><td data-label="Name">${escapeHTML(record.member_name)}</td><td data-label="Type">${escapeHTML(record.attendance_type || "Member")}</td><td data-label="Phone">${escapeHTML(record.phone || "-")}</td><td data-label="Address">${escapeHTML(record.address || "-")}</td><td data-label="Date of Visit">${formatDate(localDate(record.time_in))}</td><td data-label="Time In">${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(record.time_in))}</td><td data-label="Recorded By">${escapeHTML(record.recorded_by)}</td></tr>`).join("");
+  $("#attendanceEmpty").hidden = shownAttendance.length > 0;
+
+  const today = localDate(new Date());
+  const month = $("#reportMonth").value || today.slice(0, 7);
+  const monthlyPayments = payments.filter((record) => localDate(record.paid_at).startsWith(month));
+  $("#reportActive").textContent = members.filter((member) => statusOf(member.expiry) !== "expired").length;
+  $("#reportExpired").textContent = members.filter((member) => statusOf(member.expiry) === "expired").length;
+  $("#reportDailyAttendance").textContent = attendance.filter((record) => localDate(record.time_in) === today).length;
+  $("#reportMonthlyAttendance").textContent = attendance.filter((record) => localDate(record.time_in).startsWith(month)).length;
+  $("#reportPayments").textContent = monthlyPayments.length;
+  $("#reportPaymentAmount").textContent = money(monthlyPayments.reduce((sum, record) => sum + Number(record.amount), 0));
+  $("#reportRenewals").textContent = renewals.filter((record) => localDate(record.renewed_at).startsWith(month)).length;
+  $("#reportDailyRevenue").textContent = money(payments.filter((record) => localDate(record.paid_at) === today).reduce((sum, record) => sum + Number(record.amount), 0));
+  $("#reportMonthlyRevenue").textContent = money(monthlyPayments.reduce((sum, record) => sum + Number(record.amount), 0));
+}
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+if (isAdminPage) {
+  const today = localDate(new Date());
+  $("#reportMonth").value = today.slice(0, 7);
+  $("#attendanceDate").addEventListener("change", renderAdmin);
+  $("#reportMonth").addEventListener("change", renderAdmin);
+  $("#navAttendance").addEventListener("click", () => { closeMobileMenu(); $("#attendanceSection").scrollIntoView({ behavior: "smooth" }); });
+  $("#navReports").addEventListener("click", () => { closeMobileMenu(); $("#reportsSection").scrollIntoView({ behavior: "smooth" }); });
+  $("#exportAttendance").addEventListener("click", () => downloadCsv("attendance-report.csv", [["Attendance ID", "Name", "Type", "Phone", "Address", "Date of Visit", "Time In", "Recorded By"], ...attendance.map((record) => [record.id, record.member_name, record.attendance_type || "Member", record.phone || "", record.address || "", localDate(record.time_in), new Date(record.time_in).toLocaleTimeString(), record.recorded_by])]));
+  $("#exportReports").addEventListener("click", () => downloadCsv("business-summary.csv", [["Report", "Value"], ["Active Members", $("#reportActive").textContent], ["Expired Members", $("#reportExpired").textContent], ["Daily Attendance", $("#reportDailyAttendance").textContent], ["Monthly Attendance", $("#reportMonthlyAttendance").textContent], ["Payments", $("#reportPayments").textContent], ["Payment Amount", $("#reportPaymentAmount").textContent], ["Renewals", $("#reportRenewals").textContent], ["Daily Revenue", $("#reportDailyRevenue").textContent], ["Monthly Revenue", $("#reportMonthlyRevenue").textContent]]));
+}

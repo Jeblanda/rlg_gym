@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="RLG Gym admin membership verification portal">
-  <title>RLG Gym Admin</title>
+  <meta name="description" content="RLG Gym staff membership verification portal">
+  <title>RLG Gym Staff Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-page="staff">
   <section class="login-screen" id="loginScreen">
     <div class="login-art">
       <img src="assets/rlggym.png" alt="RLG Fitness Gym">
-      <div><span>Private administration portal</span><h1>Know every<br><em>member.</em></h1></div>
+      <div><span>Staff operations portal</span><h1>Know every<br><em>member.</em></h1></div>
     </div>
     <form class="login-card" id="loginForm">
       <img src="assets/rlggym.png" alt="" class="login-logo">
       <p class="kicker">Authorized access only</p>
-      <h2>Admin sign in</h2>
+      <h2>Staff sign in</h2>
       <p class="muted">Sign in to verify and manage RLG Gym members.</p>
       <label>Email address<input name="email" type="email" autocomplete="username" required placeholder="Admin email"></label>
       <label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="Password"></label>
@@ -36,7 +36,7 @@
         <button class="nav-item" id="navMembers"><span>◎</span> Members</button>
         <button class="nav-item" id="navCheckin"><span>✓</span> Verification</button>
       </nav>
-      <div class="admin-box"><span class="admin-avatar">AD</span><div><strong>Gym Admin</strong><small>Administrator</small></div></div>
+      <div class="admin-box"><span class="admin-avatar" id="userAvatar">ST</span><div><strong id="userName">Gym Staff</strong><small id="userRole">Staff</small></div></div>
       <button class="logout" id="logoutButton">Log out</button>
     </aside>
 
@@ -44,7 +44,7 @@
       <header class="topbar">
         <button class="menu-button" id="menuButton">☰</button>
         <div><p class="kicker" id="todayLabel"></p><h2>Member overview</h2></div>
-        <button class="button primary" id="addMemberButton">+ Add member</button>
+        <div class="topbar-actions"><button class="button secondary" id="walkInButton">+ Record walk-in</button><button class="button primary" id="addMemberButton">+ Add member</button></div>
       </header>
 
       <section class="verify-panel" id="verifyPanel">
@@ -111,13 +111,13 @@
           <label>Member ID<input name="memberId" required placeholder="RLG-0001"></label>
           <div class="date-field" data-date-field="dob"><span>Date of birth</span><input name="dob" type="hidden"><div class="date-parts"><select data-part="month" aria-label="Birth month" required></select><select data-part="day" aria-label="Birth day" required></select><select data-part="year" aria-label="Birth year" required></select></div></div>
           <label>Email<input name="email" type="email" required></label>
-          <label>Phone number<input name="phone" type="tel" required></label>
-          <label>Membership plan<select name="plan"><option>Monthly</option><option>Quarterly</option><option>Annual</option></select></label>
+          <label>Phone number<input name="phone" type="tel" inputmode="numeric" pattern="[0-9]{11}" minlength="11" maxlength="11" required placeholder="11-digit phone number"></label>
+          <label>Membership plan<select name="plan"><option value="Monthly">Monthly - PHP 800</option><option value="Daily">Daily - PHP 80</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select><small class="field-note" id="planRate">Monthly rate: PHP 800</small></label>
           <div class="date-field" data-date-field="startDate"><span>Start date</span><input name="startDate" type="hidden"><div class="date-parts"><select data-part="month" aria-label="Start month" required></select><select data-part="day" aria-label="Start day" required></select><select data-part="year" aria-label="Start year" required></select></div></div>
-          <div class="date-field" data-date-field="expiry"><span>Expiry date</span><input name="expiry" type="hidden"><div class="date-parts"><select data-part="month" aria-label="Expiry month" required></select><select data-part="day" aria-label="Expiry day" required></select><select data-part="year" aria-label="Expiry year" required></select></div></div>
+          <label>Expiry date<input name="expiry" type="hidden"><output class="auto-expiry" id="expiryDisplay">Choose a start date and plan</output></label>
           <label class="span-2">Home address<input name="address" required></label>
           <label>Emergency contact<input name="emergencyName" required></label>
-          <label>Emergency phone<input name="emergencyPhone" type="tel" required></label>
+          <label>Emergency phone<input name="emergencyPhone" type="tel" inputmode="numeric" pattern="[0-9]{11}" minlength="11" maxlength="11" required placeholder="11-digit phone number"></label>
           <label class="span-2">Admin notes<textarea name="notes" rows="3" placeholder="Medical notes, access details, etc."></textarea></label>
         </div>
       </div>
@@ -127,6 +127,37 @@
 
   <dialog id="profileDialog">
     <div class="profile-modal"><button class="icon-button close-profile">×</button><div id="profileContent"></div></div>
+  </dialog>
+
+  <dialog id="walkInDialog">
+    <form id="walkInForm">
+      <div class="modal-head"><div><p class="kicker">Daily walk-in</p><h2>Record attendance</h2></div><button type="button" class="icon-button close-walk-in">×</button></div>
+      <div class="walk-in-body">
+        <p class="rate-banner">One-day access <strong>PHP 80</strong></p>
+        <div class="fields">
+          <label class="span-2">Full name<input name="name" required></label>
+          <label>Phone number<input name="phone" type="tel" inputmode="numeric" pattern="[0-9]{11}" minlength="11" maxlength="11" required placeholder="11-digit phone number"></label>
+          <label class="span-2">Home address<input name="address" required></label>
+        </div>
+      </div>
+      <div class="modal-actions"><button type="button" class="button ghost close-walk-in">Cancel</button><button type="submit" class="button primary">Record walk-in and payment</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="renewDialog">
+    <form id="renewForm">
+      <div class="modal-head"><div><p class="kicker">Membership renewal</p><h2>Confirm renewal</h2></div><button type="button" class="icon-button close-renew">×</button></div>
+      <div class="confirm-body">
+        <p id="renewMember"></p>
+        <div class="fields renew-fields">
+          <label>Renewal plan<select name="renewPlan" required><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select></label>
+          <label>Number of months<input name="renewMonths" type="number" min="1" max="120" required></label>
+          <label>Payment amount (PHP)<input name="renewAmount" type="number" min="1" step="0.01" required></label>
+        </div>
+        <div class="confirm-grid" id="renewDetails"></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="button ghost close-renew">Cancel</button><button type="submit" class="button primary">Confirm renewal</button></div>
+    </form>
   </dialog>
 
   <div class="toast" id="toast"></div>

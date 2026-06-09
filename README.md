@@ -1,6 +1,9 @@
-# RLG Gym Admin Portal
+# RLG Gym Staff and Admin Portals
 
-An admin-only membership verification and management dashboard.
+Two role-based dashboards:
+
+- `index.html` is the staff portal for member management, verification, check-ins, renewals, and PHP 80 daily walk-ins.
+- `admin.html` includes all staff features plus attendance history, reports, revenue summaries, and CSV exports.
 
 ## Supabase setup
 
@@ -8,6 +11,7 @@ An admin-only membership verification and management dashboard.
 2. Before running its final statement, replace `YOUR_ADMIN_EMAIL` with the
    email address of a user created under Authentication > Users.
 3. Confirm the `member-images` storage bucket is private.
+4. Run `supabase-admin-staff-upgrade.sql`, replace both placeholder emails, and sign back in.
 
 The browser uses the publishable anon key in `supabase-config.js`. Never place
 the Supabase service-role key in this project.
@@ -19,8 +23,8 @@ python -m http.server 8080 --bind 0.0.0.0
 ```
 
 Member records are stored in Supabase and member images are uploaded to the
-private `member-images` bucket. Access is restricted to users whose Supabase
-app metadata contains `"role": "admin"`.
+private `member-images` bucket. Access is restricted using the `"admin"` and
+`"staff"` roles in Supabase user app metadata.
 
 ## Deploy to Vercel
 
