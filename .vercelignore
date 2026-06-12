@@ -1,3 +1,5 @@
 README.md
 *.sql
 supabase/
+.env
+.env.*

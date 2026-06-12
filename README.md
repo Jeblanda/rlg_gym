@@ -26,6 +26,57 @@ Never place the service-role key in `supabase-config.js` or other browser files.
 The browser uses the publishable anon key in `supabase-config.js`. Never place
 the Supabase service-role key in this project.
 
+## Automatic membership expiry emails
+
+The `membership-expiry-reminders` Edge Function sends each member an email when
+their membership has 7, 3, 1, or 0 days remaining. It records successful sends
+so running the job more than once does not send the same reminder twice.
+
+1. Run `supabase-membership-reminders.sql` in the Supabase SQL Editor.
+2. Copy `.env.local.example` to `.env.local`, then replace its three placeholder
+   values. Use your Gmail address, a 16-character Google App Password without
+   spaces, and a long random `CRON_SECRET`. Do not use your normal Gmail
+   password. The `.env.local` file is ignored by Git and must never be committed.
+3. Upload the values from `.env.local` to Supabase Secrets:
+
+```powershell
+npx supabase@latest secrets set --env-file .env.local --project-ref rhpnpcdirkyuzznzkvud
+```
+
+The deployed Edge Function reads its values from Supabase Secrets, not directly
+from your local file.
+
+4. Deploy the function without gateway JWT verification. The function still
+   requires the private `x-cron-secret` header:
+
+```powershell
+npx supabase@latest functions deploy membership-expiry-reminders --no-verify-jwt --project-ref rhpnpcdirkyuzznzkvud
+```
+
+5. In Supabase, open **Integrations > Cron**, create a daily HTTP request job,
+   and POST to:
+
+```text
+https://rhpnpcdirkyuzznzkvud.supabase.co/functions/v1/membership-expiry-reminders
+```
+
+Add the request header `x-cron-secret` with the same value used for
+`CRON_SECRET` from your private `.env.local`. Schedule it once each morning.
+Change `REMINDER_DAYS` to adjust which days trigger an email.
+
+To test the deployed function manually, run:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "https://rhpnpcdirkyuzznzkvud.supabase.co/functions/v1/membership-expiry-reminders" `
+  -Headers @{ "x-cron-secret" = ((Get-Content .env.local | ConvertFrom-StringData).CRON_SECRET) }
+```
+
+Only members with an email address and an expiry matching a configured reminder
+day receive a message. The response reports how many reminders were sent,
+skipped, or failed.
+
 ## Run locally
 
 ```powershell
