@@ -15,6 +15,7 @@ create table if not exists public.payments (
   id uuid primary key default gen_random_uuid(),
   member_id uuid references public.members(id),
   member_name text not null,
+  membership_type text not null default 'Standard',
   amount numeric(12,2) not null check (amount > 0),
   payment_type text not null default 'Renewal',
   paid_at timestamptz not null default now(),
@@ -25,6 +26,7 @@ create table if not exists public.renewals (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references public.members(id),
   member_name text not null,
+  membership_type text not null default 'Standard',
   old_expiry date not null,
   new_expiry date not null,
   renewal_plan text,
@@ -42,11 +44,20 @@ alter table public.attendance add column if not exists phone text;
 alter table public.attendance add column if not exists address text;
 alter table public.attendance add column if not exists attendance_type text not null default 'Member';
 alter table public.payments alter column member_id drop not null;
+alter table public.payments add column if not exists membership_type text not null default 'Standard';
 alter table public.renewals add column if not exists renewal_plan text;
 alter table public.renewals add column if not exists renewal_months integer;
+alter table public.renewals add column if not exists membership_type text not null default 'Standard';
 
 alter table public.members drop constraint if exists members_plan_check;
 alter table public.members add constraint members_plan_check check (plan in ('Daily', 'Monthly', 'Quarterly', 'Annual'));
+alter table public.members add column if not exists membership_type text not null default 'Standard';
+alter table public.members drop constraint if exists members_membership_type_check;
+alter table public.members add constraint members_membership_type_check check (membership_type in ('Standard', 'VIP'));
+alter table public.payments drop constraint if exists payments_membership_type_check;
+alter table public.payments add constraint payments_membership_type_check check (membership_type in ('Standard', 'VIP'));
+alter table public.renewals drop constraint if exists renewals_membership_type_check;
+alter table public.renewals add constraint renewals_membership_type_check check (membership_type in ('Standard', 'VIP'));
 
 drop policy if exists "Authenticated admins can read members" on public.members;
 drop policy if exists "Authenticated admins can create members" on public.members;

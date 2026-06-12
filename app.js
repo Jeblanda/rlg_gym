@@ -11,6 +11,7 @@ const pageRole = document.body.dataset.page || "staff";
 const isAdminPage = pageRole === "admin";
 const PLAN_MONTHS = { Daily: 0, Monthly: 1, Quarterly: 3, Annual: 12 };
 const PLAN_RATES = { Daily: 80, Monthly: 800 };
+const MEMBERSHIP_TYPES = ["Standard", "VIP"];
 let pendingPhoto = null;
 let pendingValidId = null;
 const $ = (selector) => document.querySelector(selector);
@@ -64,15 +65,18 @@ function updateExpiry() {
   const expiry = expiryFrom(form.elements.startDate.value, form.elements.plan.value);
   form.elements.expiry.value = expiry;
   $("#expiryDisplay").textContent = expiry ? formatDate(expiry) : "Choose a start date and plan";
-  $("#planRate").textContent = PLAN_RATES[form.elements.plan.value] ? `${form.elements.plan.value} rate: ${money(PLAN_RATES[form.elements.plan.value])}` : "Rate not configured";
+  $("#planRate").textContent = form.elements.membershipType.value === "VIP"
+    ? "VIP payment amount is entered during renewal"
+    : PLAN_RATES[form.elements.plan.value] ? `${form.elements.plan.value} rate: ${money(PLAN_RATES[form.elements.plan.value])}` : "Rate not configured";
 }
 form.elements.plan.addEventListener("change", updateExpiry);
+form.elements.membershipType.addEventListener("change", updateExpiry);
 
 function dbToMember(row) {
-  return { id: row.id, memberId: row.member_id, name: row.name, dob: row.dob, email: row.email || "", phone: row.phone || "", address: row.address || "", emergencyName: row.emergency_name || "", emergencyPhone: row.emergency_phone || "", plan: row.plan, startDate: row.start_date, expiry: row.expiry, lastCheckin: row.last_checkin, notes: row.notes || "", photoPath: row.face_photo_path, validIdPath: row.valid_id_path, photo: "", validIdPhoto: "" };
+  return { id: row.id, memberId: row.member_id, name: row.name, dob: row.dob, email: row.email || "", phone: row.phone || "", address: row.address || "", emergencyName: row.emergency_name || "", emergencyPhone: row.emergency_phone || "", membershipType: row.membership_type || "Standard", plan: row.plan, startDate: row.start_date, expiry: row.expiry, lastCheckin: row.last_checkin, notes: row.notes || "", photoPath: row.face_photo_path, validIdPath: row.valid_id_path, photo: "", validIdPhoto: "" };
 }
 function memberToDb(data, facePath, validIdPath) {
-  return { member_id: data.memberId, name: data.name, dob: data.dob, email: data.email, phone: data.phone, address: data.address, emergency_name: data.emergencyName, emergency_phone: data.emergencyPhone, plan: data.plan, start_date: data.startDate, expiry: data.expiry, notes: data.notes, face_photo_path: facePath, valid_id_path: validIdPath };
+  return { member_id: data.memberId, name: data.name, dob: data.dob, email: data.email, phone: data.phone, address: data.address, emergency_name: data.emergencyName, emergency_phone: data.emergencyPhone, membership_type: data.membershipType, plan: data.plan, start_date: data.startDate, expiry: data.expiry, notes: data.notes, face_photo_path: facePath, valid_id_path: validIdPath };
 }
 async function signedUrl(path) {
   if (!path) return "";
@@ -161,8 +165,8 @@ $("#logoutButton").addEventListener("click", () => supabaseClient.auth.signOut()
 
 function render() {
   const query = $("#searchInput").value.toLowerCase().trim(), filter = $("#statusFilter").value;
-  const filtered = members.filter((member) => `${member.memberId} ${member.name} ${member.email} ${member.phone}`.toLowerCase().includes(query) && (filter === "all" || statusOf(member.expiry) === filter));
-  table.innerHTML = filtered.map((member) => `<tr><td data-label="Member"><div class="member-cell"><img class="member-photo" src="${member.photo}" alt=""><span><strong>${escapeHTML(member.name)}</strong><small>${escapeHTML(member.email)}</small></span></div></td><td data-label="Member ID"><b>${escapeHTML(member.memberId)}</b></td><td data-label="Started">${formatDate(member.startDate)}</td><td data-label="Expires">${formatDate(member.expiry)}</td><td data-label="Status"><span class="status ${statusOf(member.expiry)}">${statusText(statusOf(member.expiry))}</span></td><td data-label="Last check-in">${escapeHTML(formatCheckin(member.lastCheckin))}</td><td class="member-card-action"><button class="view-button" data-id="${member.id}">View full profile</button></td></tr>`).join("");
+  const filtered = members.filter((member) => `${member.memberId} ${member.name} ${member.email} ${member.phone} ${member.membershipType}`.toLowerCase().includes(query) && (filter === "all" || statusOf(member.expiry) === filter));
+  table.innerHTML = filtered.map((member) => `<tr><td data-label="Member"><div class="member-cell"><img class="member-photo" src="${member.photo}" alt=""><span><strong>${escapeHTML(member.name)}</strong><small>${escapeHTML(member.membershipType)} · ${escapeHTML(member.email)}</small></span></div></td><td data-label="Member ID"><b>${escapeHTML(member.memberId)}</b></td><td data-label="Started">${formatDate(member.startDate)}</td><td data-label="Expires">${formatDate(member.expiry)}</td><td data-label="Status"><span class="status ${statusOf(member.expiry)}">${statusText(statusOf(member.expiry))}</span></td><td data-label="Last check-in">${escapeHTML(formatCheckin(member.lastCheckin))}</td><td class="member-card-action"><button class="view-button" data-id="${member.id}">View full profile</button></td></tr>`).join("");
   $("#emptyState").hidden = filtered.length > 0;
   $("#totalCount").textContent = members.length;
   $("#activeCount").textContent = members.filter((member) => statusOf(member.expiry) !== "expired").length;
@@ -181,7 +185,12 @@ function openForm(member) {
   if (!member) { form.elements.startDate.value = new Date().toISOString().slice(0, 10); form.elements.memberId.value = `RLG-${String(100 + members.length + 1).padStart(4, "0")}`; }
   dateFields.forEach((field) => syncDateField(field, form.elements[field.dataset.dateField].value));
   if (!member) updateExpiry();
-  else { $("#expiryDisplay").textContent = formatDate(member.expiry); $("#planRate").textContent = PLAN_RATES[member.plan] ? `${member.plan} rate: ${money(PLAN_RATES[member.plan])}` : "Rate not configured"; }
+  else {
+    $("#expiryDisplay").textContent = formatDate(member.expiry);
+    $("#planRate").textContent = member.membershipType === "VIP"
+      ? "VIP payment amount is entered during renewal"
+      : PLAN_RATES[member.plan] ? `${member.plan} rate: ${money(PLAN_RATES[member.plan])}` : "Rate not configured";
+  }
   $("#photoPreview").innerHTML = member?.photo ? `<img src="${member.photo}" alt="Member face photo">` : "<span>Add<br>face photo</span>";
   $("#validIdPreview").innerHTML = member?.validIdPhoto ? `<img src="${member.validIdPhoto}" alt="Valid ID image">` : "<span>Add valid<br>ID image</span>";
   memberDialog.showModal();
@@ -203,6 +212,7 @@ form.addEventListener("submit", async (event) => {
   const data = Object.fromEntries(new FormData(form));
   delete data.photo; delete data.validIdPhoto;
   data.expiry = expiryFrom(data.startDate, data.plan);
+  if (!MEMBERSHIP_TYPES.includes(data.membershipType)) { notify("Choose a valid membership type"); return; }
   const validDate = (value) => { if (!value) return false; const [year, month, day] = value.split("-").map(Number), date = new Date(year, month - 1, day); return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day; };
   if (!validDate(data.dob) || !validDate(data.startDate) || !validDate(data.expiry)) { notify("Please choose valid dates"); return; }
   if (!data.emergencyName.trim()) { notify("Emergency contact is required"); return; }
@@ -226,7 +236,7 @@ form.addEventListener("submit", async (event) => {
 function profileHTML(member) {
   const status = statusOf(member.expiry);
   const validId = member.validIdPhoto ? `<div class="id-document"><span>Valid ID image</span><img src="${member.validIdPhoto}" alt="Valid ID for ${escapeHTML(member.name)}"></div>` : `<div class="id-document"><span>Valid ID image</span><strong>No valid ID image uploaded</strong></div>`;
-  return `<div class="profile-top"><img src="${member.photo}" alt="${escapeHTML(member.name)}"><div><p class="kicker">Member verification profile</p><h2>${escapeHTML(member.name)}</h2><p class="profile-id">${escapeHTML(member.memberId)} · ${escapeHTML(member.plan)} membership</p><span class="status ${status}">${statusText(status)}</span><div class="profile-actions"><button class="button primary" data-action="checkin" data-id="${member.id}">Confirm check-in</button><button class="button secondary" data-action="edit" data-id="${member.id}">Edit profile</button><button class="button ghost" data-action="renew" data-id="${member.id}">Renew plan</button></div></div></div><div class="info-grid">${[["Start date", formatDate(member.startDate)], ["Expiry date", formatDate(member.expiry)], ["Date of birth", formatDate(member.dob)], ["Phone", member.phone], ["Email", member.email], ["Home address", member.address], ["Emergency contact", member.emergencyName], ["Emergency phone", member.emergencyPhone], ["Last check-in", formatCheckin(member.lastCheckin)], ["Admin notes", member.notes || "None"]].map(([label, value]) => `<div><span>${label}</span><strong>${escapeHTML(value)}</strong></div>`).join("")}</div>${validId}`;
+  return `<div class="profile-top"><img src="${member.photo}" alt="${escapeHTML(member.name)}"><div><p class="kicker">Member verification profile</p><h2>${escapeHTML(member.name)}</h2><p class="profile-id">${escapeHTML(member.memberId)} · ${escapeHTML(member.membershipType)} · ${escapeHTML(member.plan)} membership</p><span class="status ${status}">${statusText(status)}</span><div class="profile-actions"><button class="button primary" data-action="checkin" data-id="${member.id}">Confirm check-in</button><button class="button secondary" data-action="edit" data-id="${member.id}">Edit profile</button><button class="button ghost" data-action="renew" data-id="${member.id}">Renew plan</button></div></div></div><div class="info-grid">${[["Membership type", member.membershipType], ["Start date", formatDate(member.startDate)], ["Expiry date", formatDate(member.expiry)], ["Date of birth", formatDate(member.dob)], ["Phone", member.phone], ["Email", member.email], ["Home address", member.address], ["Emergency contact", member.emergencyName], ["Emergency phone", member.emergencyPhone], ["Last check-in", formatCheckin(member.lastCheckin)], ["Admin notes", member.notes || "None"]].map(([label, value]) => `<div><span>${label}</span><strong>${escapeHTML(value)}</strong></div>`).join("")}</div>${validId}`;
 }
 function openProfile(id) { const member = members.find((item) => item.id === id); $("#profileContent").innerHTML = profileHTML(member); profileDialog.showModal(); }
 table.addEventListener("click", (event) => { const button = event.target.closest("[data-id]"); if (button) openProfile(button.dataset.id); });
@@ -234,7 +244,7 @@ $(".close-profile").addEventListener("click", () => profileDialog.close());
 async function confirmCheckin(member) {
   if (statusOf(member.expiry) === "expired") { notify("Entry denied: membership is expired"); return false; }
   const checkedInAt = new Date().toISOString();
-  const { error: attendanceError } = await supabaseClient.from("attendance").insert({ member_id: member.id, member_name: member.name, phone: member.phone, address: member.address, attendance_type: "Member", time_in: checkedInAt, recorded_by: currentUser.email });
+  const { error: attendanceError } = await supabaseClient.from("attendance").insert({ member_id: member.id, member_name: member.name, phone: member.phone, address: member.address, attendance_type: `${member.membershipType} Member`, time_in: checkedInAt, recorded_by: currentUser.email });
   if (attendanceError) { notify(attendanceError.message); return false; }
   const { error } = await supabaseClient.from("members").update({ last_checkin: checkedInAt }).eq("id", member.id);
   if (error) { notify(error.message); return false; }
@@ -257,6 +267,7 @@ $("#profileContent").addEventListener("click", async (event) => {
     const renewalStart = new Date(`${member.expiry}T23:59:59`) > new Date() ? member.expiry : localDate(new Date());
     pendingRenewal = { member, oldExpiry, renewalStart };
     renewForm.reset();
+    renewForm.elements.renewMembershipType.value = member.membershipType;
     renewForm.elements.renewPlan.value = member.plan === "Daily" ? "Monthly" : member.plan;
     renewForm.elements.renewMonths.value = Math.max(1, PLAN_MONTHS[renewForm.elements.renewPlan.value]);
     updateRenewalPreview(true);
@@ -267,14 +278,16 @@ $("#profileContent").addEventListener("click", async (event) => {
 function updateRenewalPreview(setDefaultAmount = false) {
   if (!pendingRenewal) return;
   const plan = renewForm.elements.renewPlan.value;
+  const membershipType = renewForm.elements.renewMembershipType.value;
   const months = Math.max(1, Number(renewForm.elements.renewMonths.value) || 1);
   const newExpiry = expiryAfterMonths(pendingRenewal.renewalStart, months);
   if (setDefaultAmount) {
-    renewForm.elements.renewAmount.value = plan === "Monthly" ? months * PLAN_RATES.Monthly : PLAN_RATES[plan] || "";
+    renewForm.elements.renewAmount.value = membershipType === "VIP" ? "" : plan === "Monthly" ? months * PLAN_RATES.Monthly : PLAN_RATES[plan] || "";
   }
   $("#renewMember").innerHTML = `Confirm renewal for <strong>${escapeHTML(pendingRenewal.member.name)}</strong>. You may change the plan or months before confirming.`;
-  $("#renewDetails").innerHTML = `<span>New plan<strong>${escapeHTML(plan)}</strong></span><span>Renewal duration<strong>${months} month${months === 1 ? "" : "s"}</strong></span><span>Current expiry<strong>${formatDate(pendingRenewal.oldExpiry)}</strong></span><span>New expiry<strong>${formatDate(newExpiry)}</strong></span>`;
+  $("#renewDetails").innerHTML = `<span>Membership type<strong>${escapeHTML(membershipType)}</strong></span><span>New plan<strong>${escapeHTML(plan)}</strong></span><span>Renewal duration<strong>${months} month${months === 1 ? "" : "s"}</strong></span><span>Current expiry<strong>${formatDate(pendingRenewal.oldExpiry)}</strong></span><span>New expiry<strong>${formatDate(newExpiry)}</strong></span>`;
 }
+renewForm.elements.renewMembershipType.addEventListener("change", () => updateRenewalPreview(true));
 renewForm.elements.renewPlan.addEventListener("change", () => {
   const plan = renewForm.elements.renewPlan.value;
   renewForm.elements.renewMonths.value = Math.max(1, PLAN_MONTHS[plan]);
@@ -287,18 +300,20 @@ renewForm.addEventListener("submit", async (event) => {
   if (!pendingRenewal) return;
   const { member, oldExpiry, renewalStart } = pendingRenewal;
   const plan = renewForm.elements.renewPlan.value;
+  const membershipType = renewForm.elements.renewMembershipType.value;
   const months = Number(renewForm.elements.renewMonths.value);
   const amount = Number(renewForm.elements.renewAmount.value);
   if (!Number.isInteger(months) || months < 1 || months > 120) { notify("Renewal months must be between 1 and 120"); return; }
+  if (!MEMBERSHIP_TYPES.includes(membershipType)) { notify("Choose a valid membership type"); return; }
   if (!Number.isFinite(amount) || amount <= 0) { notify("Enter a valid renewal payment amount"); return; }
   const newExpiry = expiryAfterMonths(renewalStart, months);
   const submitButton = renewForm.querySelector('[type="submit"]');
   submitButton.disabled = true;
-  const { error: renewalError } = await supabaseClient.from("renewals").insert({ member_id: member.id, member_name: member.name, old_expiry: oldExpiry, new_expiry: newExpiry, renewal_plan: plan, renewal_months: months, amount, recorded_by: currentUser.email });
+  const { error: renewalError } = await supabaseClient.from("renewals").insert({ member_id: member.id, member_name: member.name, membership_type: membershipType, old_expiry: oldExpiry, new_expiry: newExpiry, renewal_plan: plan, renewal_months: months, amount, recorded_by: currentUser.email });
   if (renewalError) { notify(renewalError.message); submitButton.disabled = false; return; }
-  const { error: paymentError } = await supabaseClient.from("payments").insert({ member_id: member.id, member_name: member.name, amount, payment_type: `Renewal - ${plan} (${months} month${months === 1 ? "" : "s"})`, recorded_by: currentUser.email });
+  const { error: paymentError } = await supabaseClient.from("payments").insert({ member_id: member.id, member_name: member.name, membership_type: membershipType, amount, payment_type: `${membershipType} renewal - ${plan} (${months} month${months === 1 ? "" : "s"})`, recorded_by: currentUser.email });
   if (paymentError) { notify(paymentError.message); submitButton.disabled = false; return; }
-  const { error } = await supabaseClient.from("members").update({ plan, expiry: newExpiry }).eq("id", member.id);
+  const { error } = await supabaseClient.from("members").update({ membership_type: membershipType, plan, expiry: newExpiry }).eq("id", member.id);
   if (error) { notify(error.message); submitButton.disabled = false; return; }
   renewDialog.close();
   pendingRenewal = null;
@@ -312,10 +327,10 @@ renewForm.addEventListener("submit", async (event) => {
 function verify() {
   const query = $("#verifyInput").value.toLowerCase().trim();
   if (!query) { $("#verifyResult").innerHTML = '<span class="scan-icon">◎</span><strong>Ready to verify</strong><small>Member details will appear here</small>'; return; }
-  const member = members.find((item) => `${item.memberId} ${item.name} ${item.email} ${item.phone}`.toLowerCase().includes(query));
+  const member = members.find((item) => `${item.memberId} ${item.name} ${item.email} ${item.phone} ${item.membershipType}`.toLowerCase().includes(query));
   if (!member) { $("#verifyResult").innerHTML = '<span class="scan-icon">×</span><strong>No registered member found</strong><small>Check the ID or create a new profile</small>'; return; }
   const status = statusOf(member.expiry);
-  $("#verifyResult").innerHTML = `<div class="verify-card"><img class="verify-photo" src="${member.photo}" alt=""><div><h3>${escapeHTML(member.name)}</h3><p>${escapeHTML(member.memberId)} · Expires ${formatDate(member.expiry)}</p><button class="button secondary" data-verify-id="${member.id}">View full profile</button></div><div class="verify-state"><span class="status ${status}">${statusText(status)}</span><p>${status === "expired" ? "Do not admit" : "Identity and membership found"}</p></div></div>`;
+  $("#verifyResult").innerHTML = `<div class="verify-card"><img class="verify-photo" src="${member.photo}" alt=""><div><h3>${escapeHTML(member.name)}</h3><p>${escapeHTML(member.memberId)} · ${escapeHTML(member.membershipType)} · Expires ${formatDate(member.expiry)}</p><button class="button secondary" data-verify-id="${member.id}">View full profile</button></div><div class="verify-state"><span class="status ${status}">${statusText(status)}</span><p>${status === "expired" ? "Do not admit" : `${escapeHTML(member.membershipType)} access approved`}</p></div></div>`;
   const profileButton = $("#verifyResult [data-verify-id]");
   const actions = document.createElement("div");
   actions.className = "verify-actions";
@@ -350,7 +365,7 @@ walkInForm.addEventListener("submit", async (event) => {
   const timeIn = new Date().toISOString();
   const { error: attendanceError } = await supabaseClient.from("attendance").insert({ member_name: data.name, phone: data.phone, address: data.address, attendance_type: "Walk-in", time_in: timeIn, recorded_by: currentUser.email });
   if (attendanceError) { notify(attendanceError.message); return; }
-  const { error: paymentError } = await supabaseClient.from("payments").insert({ member_name: data.name, amount: PLAN_RATES.Daily, payment_type: "Daily walk-in", paid_at: timeIn, recorded_by: currentUser.email });
+  const { error: paymentError } = await supabaseClient.from("payments").insert({ member_name: data.name, membership_type: "Standard", amount: PLAN_RATES.Daily, payment_type: "Standard daily walk-in", paid_at: timeIn, recorded_by: currentUser.email });
   if (paymentError) { notify(paymentError.message); return; }
   walkInDialog.close();
   await loadAdminData();
@@ -373,12 +388,16 @@ function renderAdmin() {
   const today = localDate(new Date());
   const month = $("#reportMonth").value || today.slice(0, 7);
   const monthlyPayments = payments.filter((record) => localDate(record.paid_at).startsWith(month));
+  const standardPayments = monthlyPayments.filter((record) => (record.membership_type || "Standard") === "Standard");
+  const vipPayments = monthlyPayments.filter((record) => record.membership_type === "VIP");
   $("#reportActive").textContent = members.filter((member) => statusOf(member.expiry) !== "expired").length;
   $("#reportExpired").textContent = members.filter((member) => statusOf(member.expiry) === "expired").length;
   $("#reportDailyAttendance").textContent = attendance.filter((record) => localDate(record.time_in) === today).length;
   $("#reportMonthlyAttendance").textContent = attendance.filter((record) => localDate(record.time_in).startsWith(month)).length;
   $("#reportPayments").textContent = monthlyPayments.length;
   $("#reportPaymentAmount").textContent = money(monthlyPayments.reduce((sum, record) => sum + Number(record.amount), 0));
+  $("#reportStandardRevenue").textContent = money(standardPayments.reduce((sum, record) => sum + Number(record.amount), 0));
+  $("#reportVipRevenue").textContent = money(vipPayments.reduce((sum, record) => sum + Number(record.amount), 0));
   $("#reportRenewals").textContent = renewals.filter((record) => localDate(record.renewed_at).startsWith(month)).length;
   $("#reportDailyRevenue").textContent = money(payments.filter((record) => localDate(record.paid_at) === today).reduce((sum, record) => sum + Number(record.amount), 0));
   $("#reportMonthlyRevenue").textContent = money(monthlyPayments.reduce((sum, record) => sum + Number(record.amount), 0));
@@ -400,7 +419,7 @@ if (isAdminPage) {
   $("#navReports").addEventListener("click", () => { closeMobileMenu(); $("#reportsSection").scrollIntoView({ behavior: "smooth" }); });
   $("#navStaff").addEventListener("click", () => { closeMobileMenu(); $("#staffSection").scrollIntoView({ behavior: "smooth" }); });
   $("#exportAttendance").addEventListener("click", () => downloadCsv("attendance-report.csv", [["Attendance ID", "Name", "Type", "Phone", "Address", "Date of Visit", "Time In", "Recorded By"], ...attendance.map((record) => [record.id, record.member_name, record.attendance_type || "Member", record.phone || "", record.address || "", localDate(record.time_in), new Date(record.time_in).toLocaleTimeString(), record.recorded_by])]));
-  $("#exportReports").addEventListener("click", () => downloadCsv("business-summary.csv", [["Report", "Value"], ["Active Members", $("#reportActive").textContent], ["Expired Members", $("#reportExpired").textContent], ["Daily Attendance", $("#reportDailyAttendance").textContent], ["Monthly Attendance", $("#reportMonthlyAttendance").textContent], ["Payments", $("#reportPayments").textContent], ["Payment Amount", $("#reportPaymentAmount").textContent], ["Renewals", $("#reportRenewals").textContent], ["Daily Revenue", $("#reportDailyRevenue").textContent], ["Monthly Revenue", $("#reportMonthlyRevenue").textContent]]));
+  $("#exportReports").addEventListener("click", () => downloadCsv("business-summary.csv", [["Report", "Value"], ["Active Members", $("#reportActive").textContent], ["Expired Members", $("#reportExpired").textContent], ["Daily Attendance", $("#reportDailyAttendance").textContent], ["Monthly Attendance", $("#reportMonthlyAttendance").textContent], ["Payments", $("#reportPayments").textContent], ["Payment Amount", $("#reportPaymentAmount").textContent], ["Standard Revenue", $("#reportStandardRevenue").textContent], ["VIP Revenue", $("#reportVipRevenue").textContent], ["Renewals", $("#reportRenewals").textContent], ["Daily Revenue", $("#reportDailyRevenue").textContent], ["Monthly Revenue", $("#reportMonthlyRevenue").textContent]]));
   const staffDialog = $("#staffDialog");
   const staffForm = $("#staffForm");
   $("#addStaffButton").addEventListener("click", () => { staffForm.reset(); staffDialog.showModal(); });

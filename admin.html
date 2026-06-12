@@ -113,6 +113,8 @@
           <article><span>Daily Attendance</span><strong id="reportDailyAttendance">0</strong></article>
           <article><span>Monthly Attendance</span><strong id="reportMonthlyAttendance">0</strong></article>
           <article><span>Payment Summary</span><strong id="reportPayments">0</strong><small id="reportPaymentAmount">PHP 0.00</small></article>
+          <article><span>Standard Revenue</span><strong id="reportStandardRevenue">PHP 0.00</strong></article>
+          <article><span>VIP Revenue</span><strong id="reportVipRevenue">PHP 0.00</strong></article>
           <article><span>Renewal Summary</span><strong id="reportRenewals">0</strong></article>
           <article><span>Revenue Today</span><strong id="reportDailyRevenue">PHP 0.00</strong></article>
           <article><span>Revenue This Month</span><strong id="reportMonthlyRevenue">PHP 0.00</strong></article>
@@ -160,6 +162,7 @@
           <div class="date-field" data-date-field="dob"><span>Date of birth</span><input name="dob" type="hidden"><div class="date-parts"><select data-part="month" aria-label="Birth month" required></select><select data-part="day" aria-label="Birth day" required></select><select data-part="year" aria-label="Birth year" required></select></div></div>
           <label>Email<input name="email" type="email" required></label>
           <label>Phone number<input name="phone" type="tel" inputmode="numeric" pattern="[0-9]{11}" minlength="11" maxlength="11" required placeholder="11-digit phone number"></label>
+          <label>Membership type<select name="membershipType" required><option value="Standard">Standard Gym</option><option value="VIP">VIP Gym</option></select></label>
           <label>Membership plan<select name="plan"><option value="Monthly">Monthly - PHP 800</option><option value="Daily">Daily - PHP 80</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select><small class="field-note" id="planRate">Monthly rate: PHP 800</small></label>
           <div class="date-field" data-date-field="startDate"><span>Start date</span><input name="startDate" type="hidden"><div class="date-parts"><select data-part="month" aria-label="Start month" required></select><select data-part="day" aria-label="Start day" required></select><select data-part="year" aria-label="Start year" required></select></div></div>
           <label>Expiry date<input name="expiry" type="hidden"><output class="auto-expiry" id="expiryDisplay">Choose a start date and plan</output></label>
@@ -198,6 +201,7 @@
       <div class="confirm-body">
         <p id="renewMember"></p>
         <div class="fields renew-fields">
+          <label>Membership type<select name="renewMembershipType" required><option value="Standard">Standard Gym</option><option value="VIP">VIP Gym</option></select></label>
           <label>Renewal plan<select name="renewPlan" required><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option><option value="Annual">Annual</option></select></label>
           <label>Number of months<input name="renewMonths" type="number" min="1" max="120" required></label>
           <label>Payment amount (PHP)<input name="renewAmount" type="number" min="1" step="0.01" required></label>

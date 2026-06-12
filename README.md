@@ -104,3 +104,6 @@ and back into the portal so Supabase issues a fresh admin session token.
 
 When upgrading a database created by an older portal version, run
 `supabase-migrate-existing.sql` once in the Supabase SQL Editor.
+
+To enable separate Standard Gym and VIP Gym memberships and payment reporting,
+run `supabase-vip-membership-upgrade.sql` once in the Supabase SQL Editor.
