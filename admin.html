@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="assets/rlggym.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-page="admin">
@@ -218,8 +219,8 @@
       <div class="confirm-body">
         <p>The staff member can sign in through the Staff Portal immediately after creation.</p>
         <div class="fields">
-          <label class="span-2">Full name<input name="fullName" required></label>
-          <label class="span-2">Email address<input name="email" type="email" required></label>
+          <label class="span-2">Full name<input name="fullName" autocomplete="name" required></label>
+          <label class="span-2">Email address<input name="email" type="email" autocomplete="username" required></label>
           <label>Password<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
           <label>Confirm password<input name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required></label>
         </div>

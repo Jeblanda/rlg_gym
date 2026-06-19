@@ -9,7 +9,7 @@ create table if not exists public.members (
   emergency_name text,
   emergency_phone text,
   membership_type text not null default 'Standard' check (membership_type in ('Standard', 'VIP')),
-  plan text not null check (plan in ('Monthly', 'Quarterly', 'Annual')),
+  plan text not null check (plan in ('Daily', 'Monthly', 'Quarterly', 'Annual')),
   start_date date not null,
   expiry date not null,
   last_checkin timestamptz,
@@ -23,6 +23,8 @@ create table if not exists public.members (
 -- CREATE TABLE IF NOT EXISTS does not add columns to an existing table.
 alter table public.members add column if not exists updated_at timestamptz not null default now();
 alter table public.members add column if not exists membership_type text not null default 'Standard';
+alter table public.members drop constraint if exists members_plan_check;
+alter table public.members add constraint members_plan_check check (plan in ('Daily', 'Monthly', 'Quarterly', 'Annual'));
 
 alter table public.members enable row level security;
 

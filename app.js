@@ -28,9 +28,25 @@ const renewForm = $("#renewForm");
 
 $("#todayLabel").textContent = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date());
 const escapeHTML = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]);
-const formatDate = (value) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T00:00:00`));
-const formatCheckin = (value) => value ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Never";
-const statusOf = (expiry) => { const days = Math.ceil((new Date(`${expiry}T00:00:00`) - new Date().setHours(0, 0, 0, 0)) / 86400000); return days < 0 ? "expired" : days <= 14 ? "expiring" : "active"; };
+const parseLocalDate = (value) => {
+  const [year, month, day] = String(value || "").slice(0, 10).split("-").map(Number);
+  if (![year, month, day].every(Number.isInteger)) return null;
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+};
+const formatDate = (value) => {
+  const date = parseLocalDate(value);
+  return date ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date) : "Not set";
+};
+const formatCheckin = (value) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date) : "Never";
+};
+const formatTime = (value) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date) : "Not set";
+};
+const statusOf = (expiry) => { const expiryDate = parseLocalDate(expiry); if (!expiryDate) return "expired"; const days = Math.ceil((expiryDate - new Date().setHours(0, 0, 0, 0)) / 86400000); return days < 0 ? "expired" : days <= 14 ? "expiring" : "active"; };
 const statusText = (status) => status === "expiring" ? "Expiring soon" : status[0].toUpperCase() + status.slice(1);
 
 function notify(text) {
@@ -55,6 +71,7 @@ function expiryFrom(startDate, plan) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 function expiryAfterMonths(startDate, months) {
+  if (!parseLocalDate(startDate)) return "";
   const [year, month, day] = startDate.split("-").map(Number);
   const targetMonth = month - 1 + months;
   const lastDay = new Date(year, targetMonth + 1, 0).getDate();
@@ -213,7 +230,7 @@ form.addEventListener("submit", async (event) => {
   delete data.photo; delete data.validIdPhoto;
   data.expiry = expiryFrom(data.startDate, data.plan);
   if (!MEMBERSHIP_TYPES.includes(data.membershipType)) { notify("Choose a valid membership type"); return; }
-  const validDate = (value) => { if (!value) return false; const [year, month, day] = value.split("-").map(Number), date = new Date(year, month - 1, day); return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day; };
+  const validDate = (value) => Boolean(parseLocalDate(value));
   if (!validDate(data.dob) || !validDate(data.startDate) || !validDate(data.expiry)) { notify("Please choose valid dates"); return; }
   if (!data.emergencyName.trim()) { notify("Emergency contact is required"); return; }
   if (!/^\d{11}$/.test(data.phone) || !/^\d{11}$/.test(data.emergencyPhone)) { notify("Phone and emergency phone must contain exactly 11 digits"); return; }
@@ -234,14 +251,21 @@ form.addEventListener("submit", async (event) => {
 });
 
 function profileHTML(member) {
+  if (!member) return '<div class="empty">Member profile was not found. Refresh the directory and try again.</div>';
   const status = statusOf(member.expiry);
   const validId = member.validIdPhoto ? `<div class="id-document"><span>Valid ID image</span><img src="${member.validIdPhoto}" alt="Valid ID for ${escapeHTML(member.name)}"></div>` : `<div class="id-document"><span>Valid ID image</span><strong>No valid ID image uploaded</strong></div>`;
   return `<div class="profile-top"><img src="${member.photo}" alt="${escapeHTML(member.name)}"><div><p class="kicker">Member verification profile</p><h2>${escapeHTML(member.name)}</h2><p class="profile-id">${escapeHTML(member.memberId)} · ${escapeHTML(member.membershipType)} · ${escapeHTML(member.plan)} membership</p><span class="status ${status}">${statusText(status)}</span><div class="profile-actions"><button class="button primary" data-action="checkin" data-id="${member.id}">Confirm check-in</button><button class="button secondary" data-action="edit" data-id="${member.id}">Edit profile</button><button class="button ghost" data-action="renew" data-id="${member.id}">Renew plan</button></div></div></div><div class="info-grid">${[["Membership type", member.membershipType], ["Start date", formatDate(member.startDate)], ["Expiry date", formatDate(member.expiry)], ["Date of birth", formatDate(member.dob)], ["Phone", member.phone], ["Email", member.email], ["Home address", member.address], ["Emergency contact", member.emergencyName], ["Emergency phone", member.emergencyPhone], ["Last check-in", formatCheckin(member.lastCheckin)], ["Admin notes", member.notes || "None"]].map(([label, value]) => `<div><span>${label}</span><strong>${escapeHTML(value)}</strong></div>`).join("")}</div>${validId}`;
 }
-function openProfile(id) { const member = members.find((item) => item.id === id); $("#profileContent").innerHTML = profileHTML(member); profileDialog.showModal(); }
+function openProfile(id) {
+  const member = members.find((item) => item.id === id);
+  if (!member) { notify("Member profile was not found. Refreshing records."); loadMembers(); return; }
+  $("#profileContent").innerHTML = profileHTML(member);
+  profileDialog.showModal();
+}
 table.addEventListener("click", (event) => { const button = event.target.closest("[data-id]"); if (button) openProfile(button.dataset.id); });
 $(".close-profile").addEventListener("click", () => profileDialog.close());
 async function confirmCheckin(member) {
+  if (!member) { notify("Member profile was not found. Refresh the directory and try again."); return false; }
   if (statusOf(member.expiry) === "expired") { notify("Entry denied: membership is expired"); return false; }
   const checkedInAt = new Date().toISOString();
   const { error: attendanceError } = await supabaseClient.from("attendance").insert({ member_id: member.id, member_name: member.name, phone: member.phone, address: member.address, attendance_type: `${member.membershipType} Member`, time_in: checkedInAt, recorded_by: currentUser.email });
@@ -257,6 +281,7 @@ $("#profileContent").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const member = members.find((item) => item.id === button.dataset.id);
+  if (!member) { notify("Member profile was not found. Refreshing records."); await loadMembers(); return; }
   if (button.dataset.action === "edit") { profileDialog.close(); openForm(member); return; }
   if (button.dataset.action === "checkin") {
     if (await confirmCheckin(member)) $("#profileContent").innerHTML = profileHTML(members.find((item) => item.id === member.id));
@@ -374,7 +399,9 @@ walkInForm.addEventListener("submit", async (event) => {
 
 function money(value) { return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value || 0); }
 function localDate(value) {
-  const parts = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
   const get = (type) => parts.find((part) => part.type === type).value;
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
@@ -382,7 +409,7 @@ function renderAdmin() {
   if (!isAdminPage) return;
   const attendanceDate = $("#attendanceDate").value;
   const shownAttendance = attendance.filter((record) => !attendanceDate || localDate(record.time_in) === attendanceDate);
-  $("#attendanceTable").innerHTML = shownAttendance.map((record) => `<tr><td data-label="Attendance ID"><b>${escapeHTML(record.id.slice(0, 8).toUpperCase())}</b></td><td data-label="Name">${escapeHTML(record.member_name)}</td><td data-label="Type">${escapeHTML(record.attendance_type || "Member")}</td><td data-label="Phone">${escapeHTML(record.phone || "-")}</td><td data-label="Address">${escapeHTML(record.address || "-")}</td><td data-label="Date of Visit">${formatDate(localDate(record.time_in))}</td><td data-label="Time In">${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(record.time_in))}</td><td data-label="Recorded By">${escapeHTML(record.recorded_by)}</td></tr>`).join("");
+  $("#attendanceTable").innerHTML = shownAttendance.map((record) => `<tr><td data-label="Attendance ID"><b>${escapeHTML(record.id.slice(0, 8).toUpperCase())}</b></td><td data-label="Name">${escapeHTML(record.member_name)}</td><td data-label="Type">${escapeHTML(record.attendance_type || "Member")}</td><td data-label="Phone">${escapeHTML(record.phone || "-")}</td><td data-label="Address">${escapeHTML(record.address || "-")}</td><td data-label="Date of Visit">${formatDate(localDate(record.time_in))}</td><td data-label="Time In">${formatTime(record.time_in)}</td><td data-label="Recorded By">${escapeHTML(record.recorded_by)}</td></tr>`).join("");
   $("#attendanceEmpty").hidden = shownAttendance.length > 0;
 
   const today = localDate(new Date());
@@ -418,7 +445,7 @@ if (isAdminPage) {
   $("#navAttendance").addEventListener("click", () => { closeMobileMenu(); $("#attendanceSection").scrollIntoView({ behavior: "smooth" }); });
   $("#navReports").addEventListener("click", () => { closeMobileMenu(); $("#reportsSection").scrollIntoView({ behavior: "smooth" }); });
   $("#navStaff").addEventListener("click", () => { closeMobileMenu(); $("#staffSection").scrollIntoView({ behavior: "smooth" }); });
-  $("#exportAttendance").addEventListener("click", () => downloadCsv("attendance-report.csv", [["Attendance ID", "Name", "Type", "Phone", "Address", "Date of Visit", "Time In", "Recorded By"], ...attendance.map((record) => [record.id, record.member_name, record.attendance_type || "Member", record.phone || "", record.address || "", localDate(record.time_in), new Date(record.time_in).toLocaleTimeString(), record.recorded_by])]));
+  $("#exportAttendance").addEventListener("click", () => downloadCsv("attendance-report.csv", [["Attendance ID", "Name", "Type", "Phone", "Address", "Date of Visit", "Time In", "Recorded By"], ...attendance.map((record) => [record.id, record.member_name, record.attendance_type || "Member", record.phone || "", record.address || "", localDate(record.time_in), formatTime(record.time_in), record.recorded_by])]));
   $("#exportReports").addEventListener("click", () => downloadCsv("business-summary.csv", [["Report", "Value"], ["Active Members", $("#reportActive").textContent], ["Expired Members", $("#reportExpired").textContent], ["Daily Attendance", $("#reportDailyAttendance").textContent], ["Monthly Attendance", $("#reportMonthlyAttendance").textContent], ["Payments", $("#reportPayments").textContent], ["Payment Amount", $("#reportPaymentAmount").textContent], ["Standard Revenue", $("#reportStandardRevenue").textContent], ["VIP Revenue", $("#reportVipRevenue").textContent], ["Renewals", $("#reportRenewals").textContent], ["Daily Revenue", $("#reportDailyRevenue").textContent], ["Monthly Revenue", $("#reportMonthlyRevenue").textContent]]));
   const staffDialog = $("#staffDialog");
   const staffForm = $("#staffForm");

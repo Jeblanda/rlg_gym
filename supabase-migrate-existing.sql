@@ -11,6 +11,10 @@ add column if not exists membership_type text not null default 'Standard';
 alter table public.renewals
 add column if not exists membership_type text not null default 'Standard';
 
+alter table public.members drop constraint if exists members_plan_check;
+alter table public.members add constraint members_plan_check
+check (plan in ('Daily', 'Monthly', 'Quarterly', 'Annual'));
+
 alter table public.members drop constraint if exists members_membership_type_check;
 alter table public.members add constraint members_membership_type_check
 check (membership_type in ('Standard', 'VIP'));
