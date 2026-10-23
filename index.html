@@ -33,9 +33,9 @@
     <aside class="sidebar">
       <div class="logo-wrap"><img src="assets/rlggym.png" alt="RLG Fitness Gym"></div>
       <nav>
-        <button class="nav-item active"><span>▦</span> Overview</button>
-        <button class="nav-item" id="navMembers"><span>◎</span> Members</button>
-        <button class="nav-item" id="navCheckin"><span>✓</span> Verification</button>
+        <button class="nav-item active" data-view="overview" aria-current="page"><span>▦</span> Overview</button>
+        <button class="nav-item" id="navMembers" data-view="members"><span>◎</span> Members</button>
+        <button class="nav-item" id="navCheckin" data-view="verification"><span>✓</span> Verification</button>
       </nav>
       <div class="admin-box"><span class="admin-avatar" id="userAvatar">ST</span><div><strong id="userName">Gym Staff</strong><small id="userRole">Staff</small></div></div>
       <button class="logout" id="logoutButton">Log out</button>
@@ -44,11 +44,11 @@
     <main class="main">
       <header class="topbar">
         <button class="menu-button" id="menuButton">☰</button>
-        <div><p class="kicker" id="todayLabel"></p><h2>Member overview</h2></div>
+        <div><p class="kicker" id="todayLabel"></p><h2 id="pageHeading">Member overview</h2><p class="page-description" id="pageDescription">Today at RLG Gym</p></div>
         <div class="topbar-actions"><button class="button secondary" id="walkInButton">+ Record walk-in</button><button class="button primary" id="addMemberButton">+ Add member</button></div>
       </header>
 
-      <section class="verify-panel" id="verifyPanel">
+      <section class="verify-panel" id="verifyPanel" data-section="verification">
         <div>
           <p class="kicker light">Front desk verification</p>
           <h1>Who just<br><em>walked in?</em></h1>
@@ -62,14 +62,14 @@
         </div>
       </section>
 
-      <section class="metrics">
+      <section class="metrics" data-section="metrics" aria-label="Membership summary">
         <article><span>Total members</span><strong id="totalCount">0</strong><small>All registered profiles</small></article>
         <article><span>Active memberships</span><strong id="activeCount">0</strong><small class="green">Cleared for entry</small></article>
         <article><span>Expiring soon</span><strong id="expiringCount">0</strong><small class="amber">Within 14 days</small></article>
         <article><span>Expired</span><strong id="expiredCount">0</strong><small class="red">Renewal required</small></article>
       </section>
 
-      <section class="directory" id="directory">
+      <section class="directory" id="directory" data-section="members">
         <div class="directory-head">
           <div><p class="kicker">Member records</p><h2>Membership directory</h2></div>
           <div class="filters">
@@ -84,6 +84,7 @@
           </table>
           <div class="empty" id="emptyState" hidden>No matching members found.</div>
         </div>
+        <div class="list-footer"><span id="memberListStatus" role="status">Loading members…</span><div class="pager"><button class="button ghost" id="memberRefresh" type="button">Refresh</button><button class="button ghost" id="memberPrev" type="button">Previous</button><span id="memberPageLabel">Page 1</span><button class="button ghost" id="memberNext" type="button">Next</button></div></div>
       </section>
     </main>
   </div>

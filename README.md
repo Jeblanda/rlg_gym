@@ -3,7 +3,7 @@
 Two role-based dashboards:
 
 - `index.html` is the staff portal for member management, verification, check-ins, renewals, and PHP 80 daily walk-ins.
-- `admin.html` includes all staff features plus attendance history, reports, revenue summaries, and CSV exports.
+- `admin.html` includes all staff features plus the RFID scanner, attendance history, reports, revenue summaries, and CSV exports.
 - Admins can securely create staff login accounts from the Staff Accounts section.
 
 ## User manual
@@ -15,7 +15,7 @@ This manual explains how to use and maintain the RLG Gym Staff Portal and Admin 
 The system has two web portals:
 
 - `index.html` - Staff Portal for member lookup, verification, check-ins, member creation, renewals, and daily walk-ins.
-- `admin.html` - Admin Dashboard with all staff features plus attendance history, reports, CSV exports, and staff account management.
+- `admin.html` - Admin Dashboard with all staff features plus RFID check-in/check-out, attendance history, reports, CSV exports, and staff account management.
 
 All member, attendance, payment, renewal, and staff-login data is stored in Supabase. Member photos and valid ID images are stored in the private `member-images` Supabase storage bucket.
 
@@ -44,6 +44,7 @@ Admin users can do everything staff users can do. Admin users can also:
 - Export report summaries.
 - View Standard and VIP revenue totals.
 - Create staff login accounts.
+- Assign RFID cards and operate the dedicated RFID Scanner.
 
 ### Signing in
 
@@ -135,6 +136,38 @@ When a check-in is confirmed, the portal:
 
 - Adds an attendance record.
 - Updates the member's last check-in time.
+
+### Admin: RFID scanner
+
+1. Run `supabase-rfid-upgrade.sql` in the Supabase SQL Editor after the existing admin/staff upgrade. Refresh the admin dashboard.
+2. In the admin Membership Directory, open a member profile and choose **Edit profile**. Enter or tap the member's 10-digit RFID card number in **RFID card number**, then save. Clearing this field removes the assignment. A card can belong to only one member. Staff cannot see or change card assignments.
+3. Open **RFID Scanner** from the admin sidebar. Use a keyboard-wedge RFID reader configured to type the 10 digits and send Enter, or type a card number and press Enter for testing.
+4. Review the member details and private face photo. Visually compare the person with the photo before clicking **Confirm check-in** or **Confirm check-out**. An expired member cannot check in; an expiring member shows a warning. An already checked-in member can check out, including if their membership has since expired.
+5. Each RFID visit appears in Admin **Attendance** with check-in and check-out times. The attendance CSV includes both times and the check-in method. Existing manual attendance remains available and is not treated as an open RFID visit.
+
+The scanner clears and refocuses its input after every scan. Invalid or unknown numbers show an error and leave it ready for another card. After a successful action, the same card is ignored for eight seconds to prevent a double tap from reversing it; the database enforces the same cooldown. No card alone proves identity. If the photo is missing, RFID check-in is disabled until a face photo is added.
+
+#### Optional demo records (test project only)
+
+The optional `supabase-rfid-demo.sql` script inserts three **new** sample profiles and card assignments. It never updates existing member profiles and stops if a sample member ID or card conflicts with existing data. Before running it, upload six sample images to the private `member-images` bucket at the paths listed in the script. Use distinct face images that you have permission to use and sample ID images, then run the script in a test Supabase project. The script uses Manila's current date, so the status stays correct when the records are created:
+
+| RFID number | Sample member | Expiry relative to setup day | Expected status |
+| --- | --- | --- | --- |
+| `4051388725` | Ava Santos | 3 days ago | Expired |
+| `3107939326` | Marco Reyes | 45 days from now | Active |
+| `3731461465` | Lia Cruz | 7 days from now | Expiring soon |
+
+Scan all three, then try an unassigned 10-digit card and an incomplete number. For an active or expiring sample member, confirm check-in, immediately scan the same card to see the double-tap guard, then wait at least eight seconds and scan again to confirm check-out. Check the Attendance page for both times. The demo records are optional; admins can instead create test members through the portal and assign the three card numbers there.
+
+### Dashboard loading and refresh
+
+- The overview loads member details first. The directory displays 24 members per page and loads face photos as rows come into view. Open a profile to load its face photo and valid ID image. New face uploads are resized to at most 900 pixels on their longest side; valid ID uploads retain the existing 1,400-pixel limit.
+- Attendance loads 25 visits per page. Reports load the selected month's records when opened. Staff accounts load when the admin opens that section. Press **Refresh** on Members, Attendance, or Reports to retry a failed request or see external changes.
+- Private image links are reused for up to 50 minutes, then requested again. Membership status is calculated from the current expiry date each time it is shown. Every RFID scan fetches the member's latest details and RFID visit state; the eight-second duplicate guard still applies after a recorded action.
+- The scanner immediately shows lookup or recording progress. A successful visit appears only after Supabase confirms it. On connection failure, scan the card again or press the confirmation button again after the details reload.
+- The interface works on desktop, tablet, and mobile. On a narrow screen, use the menu button to switch sections.
+
+To deploy these interface updates, publish the changed `admin.html`, `index.html`, `app.js`, and `styles.css` files together. No additional SQL migration is needed beyond `supabase-rfid-upgrade.sql` for an installation that has already run it. Run `node --test tests/rfid.test.cjs` locally to check the RFID flow without writing to Supabase.
 
 ### View or edit a member profile
 

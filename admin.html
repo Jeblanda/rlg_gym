@@ -33,12 +33,13 @@
     <aside class="sidebar">
       <div class="logo-wrap"><img src="assets/rlggym.png" alt="RLG Fitness Gym"></div>
       <nav>
-        <button class="nav-item active"><span>▦</span> Overview</button>
-        <button class="nav-item" id="navMembers"><span>◎</span> Members</button>
-        <button class="nav-item" id="navCheckin"><span>✓</span> Verification</button>
-        <button class="nav-item" id="navAttendance"><span>+</span> Attendance</button>
-        <button class="nav-item" id="navReports"><span>#</span> Reports</button>
-        <button class="nav-item" id="navStaff"><span>+</span> Staff Accounts</button>
+        <button class="nav-item active" data-view="overview" aria-current="page"><span>▦</span> Overview</button>
+        <button class="nav-item" id="navMembers" data-view="members"><span>◎</span> Members</button>
+        <button class="nav-item" id="navCheckin" data-view="verification"><span>✓</span> Verification</button>
+        <button class="nav-item" id="navRfid" data-view="rfid"><span>▣</span> RFID Scanner</button>
+        <button class="nav-item" id="navAttendance" data-view="attendance"><span>+</span> Attendance</button>
+        <button class="nav-item" id="navReports" data-view="reports"><span>#</span> Reports</button>
+        <button class="nav-item" id="navStaff" data-view="staff"><span>+</span> Staff Accounts</button>
       </nav>
       <div class="admin-box"><span class="admin-avatar" id="userAvatar">AD</span><div><strong id="userName">Gym Admin</strong><small id="userRole">Administrator</small></div></div>
       <button class="logout" id="logoutButton">Log out</button>
@@ -47,11 +48,11 @@
     <main class="main">
       <header class="topbar">
         <button class="menu-button" id="menuButton">☰</button>
-        <div><p class="kicker" id="todayLabel"></p><h2>Member overview</h2></div>
+        <div><p class="kicker" id="todayLabel"></p><h2 id="pageHeading">Member overview</h2><p class="page-description" id="pageDescription">Today at RLG Gym</p></div>
         <div class="topbar-actions"><button class="button secondary" id="walkInButton">+ Record walk-in</button><button class="button primary" id="addMemberButton">+ Add member</button></div>
       </header>
 
-      <section class="verify-panel" id="verifyPanel">
+      <section class="verify-panel" id="verifyPanel" data-section="verification">
         <div>
           <p class="kicker light">Front desk verification</p>
           <h1>Who just<br><em>walked in?</em></h1>
@@ -65,14 +66,29 @@
         </div>
       </section>
 
-      <section class="metrics">
+      <section class="directory admin-section rfid-section" id="rfidSection" data-section="rfid" aria-labelledby="rfidHeading" hidden>
+        <div class="directory-head">
+          <div><p class="kicker">Admin only · front desk</p><h2 id="rfidHeading">RFID Scanner</h2></div>
+          <span class="rfid-ready" id="rfidReady">Ready to scan</span>
+        </div>
+        <div class="rfid-body">
+          <form id="rfidScanForm" autocomplete="off">
+            <label for="rfidInput">Tap a card or type its number, then press Enter</label>
+            <div class="rfid-input-row"><input id="rfidInput" name="rfid" type="text" inputmode="numeric" maxlength="32" placeholder="RFID card number" aria-describedby="rfidMessage"><button class="button primary" type="submit">Look up card</button></div>
+          </form>
+          <p class="rfid-message" id="rfidMessage" role="status" aria-live="polite">Ready for the next card.</p>
+          <div id="rfidResult" class="rfid-result"><div class="empty">A scanned member's details and face photo will appear here.</div></div>
+        </div>
+      </section>
+
+      <section class="metrics" data-section="metrics" aria-label="Membership summary">
         <article><span>Total members</span><strong id="totalCount">0</strong><small>All registered profiles</small></article>
         <article><span>Active memberships</span><strong id="activeCount">0</strong><small class="green">Cleared for entry</small></article>
         <article><span>Expiring soon</span><strong id="expiringCount">0</strong><small class="amber">Within 14 days</small></article>
         <article><span>Expired</span><strong id="expiredCount">0</strong><small class="red">Renewal required</small></article>
       </section>
 
-      <section class="directory" id="directory">
+      <section class="directory" id="directory" data-section="members">
         <div class="directory-head">
           <div><p class="kicker">Member records</p><h2>Membership directory</h2></div>
           <div class="filters">
@@ -87,27 +103,30 @@
           </table>
           <div class="empty" id="emptyState" hidden>No matching members found.</div>
         </div>
+        <div class="list-footer"><span id="memberListStatus" role="status">Loading members…</span><div class="pager"><button class="button ghost" id="memberRefresh" type="button">Refresh</button><button class="button ghost" id="memberPrev" type="button">Previous</button><span id="memberPageLabel">Page 1</span><button class="button ghost" id="memberNext" type="button">Next</button></div></div>
       </section>
 
-      <section class="directory admin-section" id="attendanceSection">
+      <section class="directory admin-section" id="attendanceSection" data-section="attendance" hidden>
         <div class="directory-head">
           <div><p class="kicker">Attendance management</p><h2>Member visits</h2></div>
-          <div class="filters"><input class="report-date" id="attendanceDate" type="date"><button class="button secondary" id="exportAttendance">Export CSV</button></div>
+          <div class="filters"><input class="report-date" id="attendanceDate" type="date"><button class="button ghost" id="attendanceRefresh" type="button">Refresh</button><button class="button secondary" id="exportAttendance">Export CSV</button></div>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Attendance ID</th><th>Name</th><th>Type</th><th>Phone</th><th>Address</th><th>Date of Visit</th><th>Time In</th><th>Recorded By</th></tr></thead>
+            <thead><tr><th>Attendance ID</th><th>Name</th><th>Type</th><th>Method</th><th>RFID card</th><th>Phone</th><th>Address</th><th>Date of Visit</th><th>Time In</th><th>Time Out</th><th>Recorded By</th><th>Checked Out By</th></tr></thead>
             <tbody id="attendanceTable"></tbody>
           </table>
           <div class="empty" id="attendanceEmpty" hidden>No attendance records found.</div>
         </div>
+        <div class="list-footer"><span id="attendanceListStatus" role="status">Loading attendance…</span><div class="pager"><button class="button ghost" id="attendancePrev" type="button">Previous</button><span id="attendancePageLabel">Page 1</span><button class="button ghost" id="attendanceNext" type="button">Next</button></div></div>
       </section>
 
-      <section class="directory admin-section" id="reportsSection">
+      <section class="directory admin-section" id="reportsSection" data-section="reports" hidden>
         <div class="directory-head">
           <div><p class="kicker">Report generation</p><h2>Business reports</h2></div>
-          <div class="filters"><input class="report-date" id="reportMonth" type="month"><button class="button secondary" id="exportReports">Export summary</button></div>
+          <div class="filters"><input class="report-date" id="reportMonth" type="month"><button class="button ghost" id="reportsRefresh" type="button">Refresh</button><button class="button secondary" id="exportReports">Export summary</button></div>
         </div>
+        <p class="load-status" id="reportLoadStatus" role="status">Open reports to load current figures.</p>
         <div class="report-grid">
           <article><span>Total Active Members</span><strong id="reportActive">0</strong></article>
           <article><span>Total Expired Members</span><strong id="reportExpired">0</strong></article>
@@ -122,7 +141,7 @@
         </div>
       </section>
 
-      <section class="directory admin-section" id="staffSection">
+      <section class="directory admin-section" id="staffSection" data-section="staff" hidden>
         <div class="directory-head">
           <div><p class="kicker">Account management</p><h2>Staff accounts</h2></div>
           <button class="button primary" id="addStaffButton">+ Create staff account</button>
@@ -160,6 +179,7 @@
         <div class="fields">
           <label class="span-2">Full legal name<input name="name" required></label>
           <label>Member ID<input name="memberId" required placeholder="RLG-0001"></label>
+          <label>RFID card number <small class="field-note">Admin only · optional</small><input name="rfidUid" inputmode="numeric" pattern="[0-9]+" maxlength="32" placeholder="Tap card to assign"></label>
           <div class="date-field" data-date-field="dob"><span>Date of birth</span><input name="dob" type="hidden"><div class="date-parts"><select data-part="month" aria-label="Birth month" required></select><select data-part="day" aria-label="Birth day" required></select><select data-part="year" aria-label="Birth year" required></select></div></div>
           <label>Email<input name="email" type="email" required></label>
           <label>Phone number<input name="phone" type="tel" inputmode="numeric" pattern="[0-9]{11}" minlength="11" maxlength="11" required placeholder="11-digit phone number"></label>
