@@ -30,7 +30,7 @@
   </section>
 
   <div class="app-shell" id="appShell" hidden>
-    <aside class="sidebar">
+    <aside class="sidebar" id="mobileSidebar" aria-label="Main navigation">
       <div class="logo-wrap"><img src="assets/rlggym.png" alt="RLG Fitness Gym"></div>
       <nav>
         <button class="nav-item active" data-view="overview" aria-current="page"><span>▦</span> Overview</button>
@@ -44,11 +44,12 @@
       <div class="admin-box"><span class="admin-avatar" id="userAvatar">AD</span><div><strong id="userName">Gym Admin</strong><small id="userRole">Administrator</small></div></div>
       <button class="logout" id="logoutButton">Log out</button>
     </aside>
+    <button class="menu-backdrop" id="menuBackdrop" type="button" aria-label="Close navigation" hidden></button>
 
     <main class="main">
       <header class="topbar">
-        <button class="menu-button" id="menuButton">☰</button>
-        <div><p class="kicker" id="todayLabel"></p><h2 id="pageHeading">Member overview</h2><p class="page-description" id="pageDescription">Today at RLG Gym</p></div>
+        <button class="menu-button" id="menuButton" type="button" aria-label="Open navigation" aria-controls="mobileSidebar" aria-expanded="false">☰</button>
+        <div><p class="kicker" id="todayLabel"></p><h2 id="pageHeading" tabindex="-1">Member overview</h2><p class="page-description" id="pageDescription">Today at RLG Gym</p></div>
         <div class="topbar-actions"><button class="button secondary" id="walkInButton">+ Record walk-in</button><button class="button primary" id="addMemberButton">+ Add member</button></div>
       </header>
 

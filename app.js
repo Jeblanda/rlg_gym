@@ -233,7 +233,9 @@ function setView(view) {
   });
   $("#pageHeading").textContent = VIEW_LABELS[view][0];
   $("#pageDescription").textContent = VIEW_LABELS[view][1];
+  const menuWasOpen = $(".sidebar").classList.contains("open");
   closeMobileMenu();
+  if (menuWasOpen) $("#pageHeading").focus({ preventScroll: true });
   if (view === "rfid") focusRfidInput();
   if (view === "verification") $("#verifyInput").focus({ preventScroll: true });
   if (view === "attendance") loadAttendance();
@@ -558,13 +560,35 @@ $("#verifyResult").addEventListener("click", async (event) => {
   if (!(await confirmCheckin(member))) checkinButton.disabled = false;
   else verify();
 });
-function closeMobileMenu() { $(".sidebar").classList.remove("open"); }
+function closeMobileMenu(restoreFocus = false) {
+  $(".sidebar").classList.remove("open");
+  $("#menuBackdrop").hidden = true;
+  $("#menuButton").setAttribute("aria-expanded", "false");
+  $("#menuButton").setAttribute("aria-label", "Open navigation");
+  document.body.classList.remove("mobile-menu-open");
+  if (restoreFocus) $("#menuButton").focus({ preventScroll: true });
+}
 $("#searchInput").addEventListener("input", () => { directoryPage = 0; render(); });
 $("#statusFilter").addEventListener("change", () => { directoryPage = 0; render(); });
 $("#memberRefresh").addEventListener("click", loadMembers);
 $("#memberPrev").addEventListener("click", () => { if (directoryPage > 0) { directoryPage--; render(); } });
 $("#memberNext").addEventListener("click", () => { directoryPage++; render(); });
-$("#menuButton").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
+$("#menuButton").addEventListener("click", () => {
+  const open = !$(".sidebar").classList.contains("open");
+  $(".sidebar").classList.toggle("open", open);
+  $("#menuBackdrop").hidden = !open;
+  $("#menuButton").setAttribute("aria-expanded", String(open));
+  $("#menuButton").setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
+  document.body.classList.toggle("mobile-menu-open", open);
+  if (open) $(".sidebar .nav-item.active").focus({ preventScroll: true });
+});
+$("#menuBackdrop").addEventListener("click", () => closeMobileMenu(true));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && $(".sidebar").classList.contains("open")) closeMobileMenu(true);
+});
+window.matchMedia("(min-width: 901px)").addEventListener("change", (event) => {
+  if (event.matches) closeMobileMenu();
+});
 $("#walkInButton").addEventListener("click", () => { walkInForm.reset(); walkInDialog.showModal(); });
 document.querySelectorAll(".close-walk-in").forEach((button) => button.addEventListener("click", () => walkInDialog.close()));
 walkInForm.addEventListener("submit", async (event) => {

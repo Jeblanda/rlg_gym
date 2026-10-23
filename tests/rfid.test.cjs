@@ -18,8 +18,9 @@ function setup(page = 'admin') {
     if (!elements.has(selector)) {
       elements.set(selector, {
         value: '', innerHTML: '', textContent: '', hidden: false, dataset: {}, listeners: {},
-        classList: { add() {}, remove() {} },
+        classList: { add() {}, remove() {}, contains() { return false; }, toggle() {} },
         addEventListener(name, handler) { this.listeners[name] = handler; },
+        setAttribute() {}, removeAttribute() {},
         focus() { this.focused = true; },
         scrollIntoView() {}, reset() {}, showModal() {}, close() {},
         querySelector() { return element(`${selector} child`); }, querySelectorAll() { return []; }
@@ -77,8 +78,8 @@ function setup(page = 'admin') {
     }
   };
   const context = vm.createContext({
-    window: { supabase: { createClient: () => client }, RLG_SUPABASE: { url: '', anonKey: '' }, location: { href: '' } },
-    document: { body: { dataset: { page } }, querySelector: element, querySelectorAll: () => [] },
+    window: { supabase: { createClient: () => client }, RLG_SUPABASE: { url: '', anonKey: '' }, location: { href: '' }, matchMedia: () => ({ addEventListener() {} }) },
+    document: { body: { dataset: { page }, classList: { add() {}, remove() {}, toggle() {} } }, querySelector: element, querySelectorAll: () => [], addEventListener() {} },
     setTimeout: () => 1, clearTimeout() {}, console
   });
   vm.runInContext(appCode, context);
